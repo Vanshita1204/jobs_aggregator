@@ -1,7 +1,5 @@
 from datetime import datetime
-
-from sqlmodel import Field, SQLModel
-
+from sqlmodel import SQLModel, Field
 
 class Job(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -14,7 +12,7 @@ class Job(SQLModel, table=True):
     source: str = Field(index=True)
     source_url: str = Field(unique=True)
 
-    designation: str = Field(index=True)
+    designation_id: int = Field(index=True)
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
