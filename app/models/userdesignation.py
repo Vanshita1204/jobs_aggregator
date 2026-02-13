@@ -5,7 +5,7 @@ from sqlmodel import Field, SQLModel
 
 
 class UserDesignation(SQLModel, table=True):
-    __table_args__ = (UniqueConstraint("user_id", "designation"),)
+    __table_args__ = (UniqueConstraint("user_id", "designation_id"),)
 
     id: int | None = Field(default=None, primary_key=True)
 

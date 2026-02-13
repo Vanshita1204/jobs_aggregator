@@ -15,6 +15,7 @@ def on_startup():
     import models.job
     import models.user
     import models.userdesignation
+    import models.designation
 
     # Create database tables (SQLite file will be created if missing)
     SQLModel.metadata.create_all(engine)

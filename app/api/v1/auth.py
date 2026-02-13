@@ -6,9 +6,9 @@ from fastapi.security import OAuth2PasswordRequestForm
 from models.user import User
 from sqlmodel import Session, select
 
-from app.core.utils import create_access_token, verify_password
-from app.db.session import get_session
-from app.models.user import User
+from core.utils import create_access_token, verify_password
+from db.session import get_session
+from models.user import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
