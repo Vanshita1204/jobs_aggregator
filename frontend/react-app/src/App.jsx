@@ -4,6 +4,7 @@ import Register from './pages/Register'
 import Login from './pages/Login'
 import Designations from './pages/Designations'
 import UserDesignation from './pages/UserDesignation'
+import Jobs from './pages/Jobs'
 
 
 export default function App() {
@@ -47,6 +48,7 @@ export default function App() {
                         <Route path="/login" element={<Login />} />
                         <Route path="/designations" element={<Designations />} />
                         <Route path="/user-designation" element={<UserDesignation />} />
+                        <Route path="/jobs" element={<Jobs />} />
                     </Routes>
                 </main>
             </div>
