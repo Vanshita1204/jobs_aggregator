@@ -2,6 +2,10 @@
     --bg: #fff;
     --muted: #666;
     --accent: #0366d6;
+    --card: #ffffff;
+    --surface: #f6f8fa;
+    --radius: 10px;
+    --shadow: 0 6px 18px rgba(20,20,30,0.06);
 }
 
 body {
@@ -9,7 +13,7 @@ body {
     background: var(--bg);
     color: #111;
     margin: 0;
-    padding: 20px;
+    padding: 24px;
 }
 
 .app {
@@ -22,12 +26,42 @@ header {
     gap: 16px;
     align-items: center;
     justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 12px 16px;
+    background: linear-gradient(90deg, rgba(3,102,214,0.06), rgba(3,102,214,0.02));
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+header h1 {
+    font-size: 20px;
+    margin: 0;
 }
 
 nav a {
     color: var(--accent);
     text-decoration: none;
     margin-right: 8px;
+    padding: 6px 8px;
+    border-radius: 6px;
+}
+
+nav a:hover {
+    background: rgba(3,102,214,0.06);
+}
+
+nav button {
+    margin-left: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+}
+
+nav button:hover {
+    background: rgba(3,102,214,0.06);
 }
 
 form {
@@ -36,18 +70,77 @@ form {
     margin-top: 12px;
 }
 
+/* Form controls */
 input,
 textarea,
-select,
+select {
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1px solid #e6e9ee;
+    border-radius: 8px;
+    background: white;
+}
+
 button {
-    padding: 8px;
+    padding: 8px 12px;
     font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: var(--accent);
+    color: white;
+    cursor: pointer;
+}
+
+button[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--accent);
+    border-color: rgba(3,102,214,0.12);
 }
 
 .result,
-pre.result {
-    background: #f6f8fa;
+.pre.result {
+    background: var(--surface);
     padding: 12px;
-    border-radius: 6px;
-    margin-top: 8px;
+    border-radius: 8px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: #0d1117;
+}
+
+section {
+    background: var(--card);
+    padding: 16px;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 16px;
+}
+
+ul {
+    padding-left: 0;
+    list-style: none;
+}
+
+li {
+    padding: 10px;
+    border-radius: 8px;
+    background: white;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+li span {
+    color: #111827;
+}
+
+@media (max-width: 600px) {
+    .app { padding: 12px; }
+    header { flex-direction: column; align-items: flex-start; }
+    li { flex-direction: column; align-items: flex-start; gap: 8px; }
 }

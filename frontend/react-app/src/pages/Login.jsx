@@ -31,9 +31,6 @@ export default function Login() {
                 <input value={password} onChange={e => setPassword(e.target.value)} placeholder="password" type="password" required />
                 <button type="submit">Login</button>
             </form>
-            <div>
-                <button onClick={() => { localStorage.removeItem('access_token'); setResult({ ok: true, message: 'Logged out' }); window.dispatchEvent(new Event('authchange')) }}>Logout</button>
-            </div>
             <pre className="result">{result && JSON.stringify(result, null, 2)}</pre>
         </section>
     )

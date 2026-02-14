@@ -33,7 +33,7 @@ export default function App() {
                         {loggedIn && (
                             <>
                                 {' '}| <Link to="/designations">Add Designation</Link> |{' '}
-                                <Link to="/user-designation">Add User Designation</Link> |{' '}
+                                <Link to="/user-designation">Manage User Designation</Link> |{' '}
                                 <Link to="/jobs">List Jobs</Link>
                                 | <button onClick={() => { localStorage.removeItem('access_token'); setLoggedIn(false); window.dispatchEvent(new Event('authchange')) }}>Logout</button>
                             </>
