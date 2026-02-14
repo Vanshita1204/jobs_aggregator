@@ -3,27 +3,29 @@ from db.session import get_session
 from fastapi import APIRouter, Depends, HTTPException
 from models.designation import Designation
 from models.user import User
-from models.userdesignation import UserDesignation
+from models.userdesignation import (
+    UserDesignation,
+    UserDesignationCreate,
+    UserDesignationRead,
+)
 from sqlmodel import Session, select
 
 router = APIRouter(prefix="/user-designation", tags=["user-designation"])
 
 
-@router.post("/add")
+@router.post("/add", response_model=UserDesignationRead)
 def create_user_designation(
-    designation_id: int,
+    payload: UserDesignationCreate,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """
-    Create a new user-designation association. Checks if the user and designation exist and raises 400 if not.
-    """
-    user = session.exec(select(User).where(User.id == user.id)).first()
-    if not user:
+    """Create a new user-designation association (body contains designation_id)."""
+    user_obj = session.exec(select(User).where(User.id == user.id)).first()
+    if not user_obj:
         raise HTTPException(status_code=400, detail="User not found")
 
     designation = session.exec(
-        select(Designation).where(Designation.id == designation_id)
+        select(Designation).where(Designation.id == payload.designation_id)
     ).first()
     if not designation:
         raise HTTPException(status_code=400, detail="Designation not found")
@@ -32,13 +34,13 @@ def create_user_designation(
     existing = session.exec(
         select(UserDesignation).where(
             UserDesignation.user_id == user.id,
-            UserDesignation.designation_id == designation_id,
+            UserDesignation.designation_id == payload.designation_id,
         )
     ).first()
     if existing:
         raise HTTPException(status_code=400, detail="User already has this designation")
 
-    user_designation = UserDesignation(user_id=user.id, designation_id=designation_id)
+    user_designation = UserDesignation(user_id=user.id, designation_id=payload.designation_id)
     session.add(user_designation)
     session.commit()
     session.refresh(user_designation)
@@ -51,9 +53,7 @@ def delete_user_designation(
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
-    """
-    Delete a user-designation association. Checks if the user and designation exist and raises 400 if not.
-    """
+    """Delete a user-designation association."""
     user_designation = session.exec(
         select(UserDesignation).where(
             UserDesignation.id == user_designation_id,
@@ -70,13 +70,11 @@ def delete_user_designation(
     return {"detail": "User-Designation association deleted"}
 
 
-@router.post("/list")
+@router.post("/list", response_model=list[UserDesignationRead])
 def list_user_designations(
     session: Session = Depends(get_session), user: User = Depends(get_current_user)
 ):
-    """
-    List all user-designation associations.
-    """
+    """List all user-designation associations for the current user."""
     user_designations = session.exec(
         select(UserDesignation).where(UserDesignation.user_id == user.id)
     ).all()

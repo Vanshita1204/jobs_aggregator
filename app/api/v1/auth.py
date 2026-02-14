@@ -3,32 +3,30 @@ from datetime import datetime
 from db.session import get_session
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from models.user import User
+from models.user import User, UserCreate, UserRead
 from sqlmodel import Session, select
 
-from core.utils import create_access_token, verify_password
-from db.session import get_session
-from models.user import User
+from core.utils import create_access_token, verify_password, hash_password
+from core.utils import get_current_user
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=User)
-def register(
-    email: str, full_name: str, password: str, session: Session = Depends(get_session)
-):
-    """
-    Register a new user. Checks if email is already registered and raises 400 if so.
-    """
-    existing = session.exec(select(User).where(User.email == email)).first()
+@router.post("/register", response_model=UserRead)
+def register(user: UserCreate, session: Session = Depends(get_session)):
+    """Register a new user using JSON body (UserCreate). Returns UserRead."""
+
+    existing = session.exec(select(User).where(User.email == user.email)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = password + "_not_hashed"  # Placeholder for hashing logic
 
-    db_user = User(email=email, full_name=full_name, hashed_password=hashed_password)
+    hashed_password = hash_password(user.password)
+    db_user = User(email=user.email, full_name=user.full_name, hashed_password=hashed_password)
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
+
     return db_user
 
 
@@ -52,3 +50,10 @@ def login(
     session.commit()
 
     return {"access_token": token, "token_type": "bearer"}
+
+
+
+@router.get("/users/me", response_model=UserRead)
+def read_current_user(current_user: User = Depends(get_current_user)):
+    """Return the currently authenticated user."""
+    return current_user

@@ -38,7 +38,9 @@ def get_current_user(
     return user
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use a pure-Python hashing scheme by default to avoid native-binary issues in dev
+# pbkdf2_sha256 is secure for many applications and doesn't require the bcrypt C extension.
+pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:

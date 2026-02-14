@@ -1,9 +1,19 @@
 from api.v1.api import api_router
 from db.session import engine
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 
 app = FastAPI(title="Jobs Aggregator")
+
+# CORS for local development: allow the React dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(api_router, prefix="/api/v1")
 

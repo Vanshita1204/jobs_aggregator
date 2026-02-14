@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import UniqueConstraint
 from sqlmodel import Field, SQLModel
@@ -14,3 +15,19 @@ class UserDesignation(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class UserDesignationCreate(SQLModel):
+    designation_id: int
+
+
+class UserDesignationRead(SQLModel):
+    id: Optional[int]
+    user_id: int
+    designation_id: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserDesignationUpdate(SQLModel):
+    designation_id: Optional[int] = None

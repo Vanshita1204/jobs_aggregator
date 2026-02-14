@@ -1,36 +1,30 @@
 from core.utils import get_current_user
 from db.session import get_session
 from fastapi import APIRouter, Depends, HTTPException
-from models.designation import Designation
+from models.designation import Designation, DesignationCreate, DesignationRead
 from sqlmodel import Session, select
 
 router = APIRouter(prefix="/designation", tags=["designation"])
 
 
-@router.post("/add")
+@router.post("/add", response_model=DesignationRead)
 def create_designation(
-    name: str, session: Session = Depends(get_session), user=Depends(get_current_user)
+    payload: DesignationCreate, session: Session = Depends(get_session), user=Depends(get_current_user)
 ):
-    """
-    Create a new designation. Checks if a designation with the same name already exists and raises 400 if so.
-    """
-    existing = session.exec(
-        select(Designation).where(Designation.title == name)
-    ).first()
+    """Create a new designation (request body)."""
+    existing = session.exec(select(Designation).where(Designation.title == payload.title)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Designation already exists")
 
-    designation = Designation(title=name, created_by=user.id)
+    designation = Designation(title=payload.title, created_by=user.id)
     session.add(designation)
     session.commit()
     session.refresh(designation)
     return designation
 
 
-@router.post("/list")
+@router.post("/list", response_model=list[DesignationRead])
 def list_designations(session: Session = Depends(get_session)):
-    """
-    List all designations.
-    """
+    """List all designations."""
     designations = session.exec(select(Designation)).all()
     return designations

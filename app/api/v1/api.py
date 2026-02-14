@@ -1,4 +1,4 @@
-from api.v1 import auth, designation, job, userdesignation
+from . import auth, designation, job, userdesignation
 from fastapi import APIRouter
 
 api_router = APIRouter()

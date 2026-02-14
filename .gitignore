@@ -144,6 +144,7 @@ ENV/
 env.bak/
 venv.bak/
 .DS_Store
+node_modules/
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -205,3 +206,4 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+

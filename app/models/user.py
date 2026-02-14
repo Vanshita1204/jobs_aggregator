@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional
 
 from sqlmodel import Field, SQLModel
 
@@ -16,3 +17,24 @@ class User(SQLModel, table=True):
 
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class UserCreate(SQLModel):
+    """Request model for creating a user (sent by client)."""
+
+    email: str
+    full_name: str
+    password: str
+
+
+class UserRead(SQLModel):
+    """Response model returned to clients (omits hashed password)."""
+
+    id: Optional[int]
+    email: str
+    full_name: str
+    is_active: bool
+    is_superuser: bool
+    last_login: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
