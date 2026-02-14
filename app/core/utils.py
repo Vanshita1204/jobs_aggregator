@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 
-from app.db.session import get_session
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from app.models.user import User
 from passlib.context import CryptContext
 from sqlmodel import Session
+
+from app.db.session import get_session
+from app.models.user import User
 
 SECRET_KEY = "CHANGE_ME"
 ALGORITHM = "HS256"

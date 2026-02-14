@@ -1,18 +1,23 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select
+
 from app.core.utils import get_current_user
 from app.db.session import get_session
-from fastapi import APIRouter, Depends, HTTPException
 from app.models.designation import Designation, DesignationCreate, DesignationRead
-from sqlmodel import Session, select
 
 router = APIRouter(prefix="/designation", tags=["designation"])
 
 
 @router.post("/add", response_model=DesignationRead)
 def create_designation(
-    payload: DesignationCreate, session: Session = Depends(get_session), user=Depends(get_current_user)
+    payload: DesignationCreate,
+    session: Session = Depends(get_session),
+    user=Depends(get_current_user),
 ):
     """Create a new designation (request body)."""
-    existing = session.exec(select(Designation).where(Designation.title == payload.title)).first()
+    existing = session.exec(
+        select(Designation).where(Designation.title == payload.title)
+    ).first()
     if existing:
         raise HTTPException(status_code=400, detail="Designation already exists")
 

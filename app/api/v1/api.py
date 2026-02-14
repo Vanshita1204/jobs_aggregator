@@ -1,5 +1,6 @@
-from . import auth, designation, job, userdesignation
 from fastapi import APIRouter
+
+from . import auth, designation, job, userdesignation
 
 api_router = APIRouter()
 api_router.include_router(auth.router)

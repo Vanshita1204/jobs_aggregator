@@ -1,14 +1,17 @@
 from datetime import datetime
 
-from app.db.session import get_session
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from app.models.user import User, UserCreate, UserRead
 from sqlmodel import Session, select
 
-from app.core.utils import create_access_token, verify_password, hash_password
-from app.core.utils import get_current_user
-
+from app.core.utils import (
+    create_access_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
+from app.db.session import get_session
+from app.models.user import User, UserCreate, UserRead
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -22,7 +25,9 @@ def register(user: UserCreate, session: Session = Depends(get_session)):
         raise HTTPException(status_code=400, detail="Email already registered")
 
     hashed_password = hash_password(user.password)
-    db_user = User(email=user.email, full_name=user.full_name, hashed_password=hashed_password)
+    db_user = User(
+        email=user.email, full_name=user.full_name, hashed_password=hashed_password
+    )
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
@@ -50,7 +55,6 @@ def login(
     session.commit()
 
     return {"access_token": token, "token_type": "bearer"}
-
 
 
 @router.get("/users/me", response_model=UserRead)

@@ -1,6 +1,8 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlmodel import Session, select
+
 from app.core.utils import get_current_user
 from app.db.session import get_session
-from fastapi import APIRouter, Depends, HTTPException
 from app.models.designation import Designation
 from app.models.user import User
 from app.models.userdesignation import (
@@ -8,7 +10,6 @@ from app.models.userdesignation import (
     UserDesignationCreate,
     UserDesignationRead,
 )
-from sqlmodel import Session, select
 
 router = APIRouter(prefix="/user-designation", tags=["user-designation"])
 
@@ -40,7 +41,9 @@ def create_user_designation(
     if existing:
         raise HTTPException(status_code=400, detail="User already has this designation")
 
-    user_designation = UserDesignation(user_id=user.id, designation_id=payload.designation_id)
+    user_designation = UserDesignation(
+        user_id=user.id, designation_id=payload.designation_id
+    )
     session.add(user_designation)
     session.commit()
     session.refresh(user_designation)
