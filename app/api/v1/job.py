@@ -1,8 +1,8 @@
-from core.utils import get_current_user
-from db.session import get_session
+from app.core.utils import get_current_user
+from app.db.session import get_session
 from fastapi import APIRouter, Depends
-from models.job import Job, JobRead
-from models.userdesignation import UserDesignation
+from app.models.job import Job, JobRead
+from app.models.userdesignation import UserDesignation
 from sqlmodel import Session, select
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])

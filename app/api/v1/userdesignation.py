@@ -1,9 +1,9 @@
-from core.utils import get_current_user
-from db.session import get_session
+from app.core.utils import get_current_user
+from app.db.session import get_session
 from fastapi import APIRouter, Depends, HTTPException
-from models.designation import Designation
-from models.user import User
-from models.userdesignation import (
+from app.models.designation import Designation
+from app.models.user import User
+from app.models.userdesignation import (
     UserDesignation,
     UserDesignationCreate,
     UserDesignationRead,

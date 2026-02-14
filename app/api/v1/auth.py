@@ -1,13 +1,13 @@
 from datetime import datetime
 
-from db.session import get_session
+from app.db.session import get_session
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from models.user import User, UserCreate, UserRead
+from app.models.user import User, UserCreate, UserRead
 from sqlmodel import Session, select
 
-from core.utils import create_access_token, verify_password, hash_password
-from core.utils import get_current_user
+from app.core.utils import create_access_token, verify_password, hash_password
+from app.core.utils import get_current_user
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])

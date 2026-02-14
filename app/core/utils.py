@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
 
-from db.session import get_session
+from app.db.session import get_session
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from models.user import User
+from app.models.user import User
 from passlib.context import CryptContext
 from sqlmodel import Session
 

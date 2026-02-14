@@ -16,6 +16,8 @@ export default function Login() {
         if (res.ok && res.data && res.data.access_token) {
             localStorage.setItem('access_token', res.data.access_token)
             setResult({ ok: true, token: res.data.access_token })
+            // notify other parts of the app that auth state changed
+            window.dispatchEvent(new Event('authchange'))
         } else {
             setResult(res)
         }
@@ -30,7 +32,7 @@ export default function Login() {
                 <button type="submit">Login</button>
             </form>
             <div>
-                <button onClick={() => { localStorage.removeItem('access_token'); setResult({ ok: true, message: 'Logged out' }) }}>Logout</button>
+                <button onClick={() => { localStorage.removeItem('access_token'); setResult({ ok: true, message: 'Logged out' }); window.dispatchEvent(new Event('authchange')) }}>Logout</button>
             </div>
             <pre className="result">{result && JSON.stringify(result, null, 2)}</pre>
         </section>
