@@ -8,13 +8,16 @@ from app.models.job import Job
 from app.services.parsers import parse_linkedin_jobs
 
 
-def fetch_linkedin_jobs():
+def fetch_linkedin_jobs(designation: Designation = None):
     """Fetch LinkedIn search pages for each Designation in the DB.
     Returns a list of dicts with metadata for each saved HTML file.
     """
     # Query designations using SQLModel session (no .query on model class)
-    with Session(engine) as session:
-        designations = session.exec(select(Designation)).all()
+    if designation:
+        designations = [designation]
+    else:       
+        with Session(engine) as session:
+            designations = session.exec(select(Designation)).all()
 
     results = []
     for designation in designations:

@@ -4,6 +4,7 @@ from sqlmodel import Session, select
 from app.core.utils import get_current_user
 from app.db.session import get_session
 from app.models.designation import Designation, DesignationCreate, DesignationRead
+from services.job_fetcher import fetch_linkedin_jobs
 
 router = APIRouter(prefix="/designation", tags=["designation"])
 
@@ -25,6 +26,7 @@ def create_designation(
     session.add(designation)
     session.commit()
     session.refresh(designation)
+    fetch_linkedin_jobs(designation)
     return designation
 
 
