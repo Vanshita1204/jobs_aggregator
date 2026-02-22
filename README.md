@@ -101,3 +101,4 @@ License
 
 
 
+install python, install playwright

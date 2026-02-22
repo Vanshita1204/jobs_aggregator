@@ -35,7 +35,11 @@ export default function App() {
                             <>
                                 {' '}| <Link to="/designations">Add Designation</Link> |{' '}
                                 <Link to="/user-designation">Manage User Designation</Link> |{' '}
-                                <Link to="/jobs">List Jobs</Link>
+                                <Link to="/jobs">List All Jobs</Link> |{' '}
+                                <Link to="/jobs/applied">List Applied Jobs</Link> |{' '}
+                                <Link to="/jobs/interviewing">List Interviewing Jobs</Link> |{' '}
+                                <Link to="/jobs/rejected">List Rejected Jobs</Link>
+
                                 | <button onClick={() => { localStorage.removeItem('access_token'); setLoggedIn(false); window.dispatchEvent(new Event('authchange')) }}>Logout</button>
                             </>
                         )}

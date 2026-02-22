@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
 
-from app.core.utils import get_current_user
+from app.core.auth import get_current_user
 from app.db.session import get_session
-from app.models.designation import Designation, DesignationCreate, DesignationRead
-from services.job_fetcher import fetch_linkedin_jobs
+from app.models.designation import (Designation, DesignationCreate,
+                                    DesignationRead)
+from app.services.designation import create_designation as create_designation_service, list_designations as list_designations_service
 
 router = APIRouter(prefix="/designation", tags=["designation"])
 
@@ -16,22 +17,14 @@ def create_designation(
     user=Depends(get_current_user),
 ):
     """Create a new designation (request body)."""
-    existing = session.exec(
-        select(Designation).where(Designation.title == payload.title)
-    ).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Designation already exists")
-
-    designation = Designation(title=payload.title, created_by=user.id)
-    session.add(designation)
-    session.commit()
-    session.refresh(designation)
-    fetch_linkedin_jobs(designation)
+    success, designation = create_designation_service(payload, session, user.id)
+    if not success:
+        raise HTTPException(status_code=400, detail=designation)
     return designation
 
 
 @router.post("/list", response_model=list[DesignationRead])
 def list_designations(session: Session = Depends(get_session)):
     """List all designations."""
-    designations = session.exec(select(Designation)).all()
+    designations = list_designations_service(session)
     return designations

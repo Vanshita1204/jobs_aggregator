@@ -1,13 +1,27 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import SQLModel
 
+import app.models  # noqa: F401
 from app.api.v1.api import api_router
+from app.core.config import settings
 from app.db.session import engine
 
-app = FastAPI(title="Jobs Aggregator")
 
-# CORS for local development: allow the React dev server
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.ENV == "development":
+        SQLModel.metadata.create_all(engine)
+    yield
+
+
+app = FastAPI(
+    title="Jobs Aggregator",
+    lifespan=lifespan,
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -19,14 +33,6 @@ app.add_middleware(
 app.include_router(api_router, prefix="/api/v1")
 
 
-@app.on_event("startup")
-def on_startup():
-    # Import all models so SQLModel metadata includes every table before creating them
-    # Import inside startup to avoid import-time side effects.
-    import app.models.designation
-    import app.models.job
-    import app.models.user
-    import app.models.userdesignation
-
-    # Create database tables (SQLite file will be created if missing)
-    SQLModel.metadata.create_all(engine)
+@app.get("/health")
+def health():
+    return {"status": "ok"}
