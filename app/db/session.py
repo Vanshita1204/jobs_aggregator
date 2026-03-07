@@ -10,5 +10,5 @@ engine = create_engine(DATABASE_URL, echo=False)
 
 
 def get_session() -> Generator[Session, None, None]:
-	with Session(engine) as session:
-		yield session
+    with Session(engine) as session:
+        yield session
