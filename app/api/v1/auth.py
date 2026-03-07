@@ -20,6 +20,7 @@ def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     session: Session = Depends(get_session)
 ):
+    breakpoint()
     token = login_user(session, form_data.username, form_data.password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")

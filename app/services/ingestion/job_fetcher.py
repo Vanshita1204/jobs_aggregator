@@ -1,14 +1,15 @@
-from app.services.parsers import (
-    parse_hirist_jobs,
-    parse_linkedin_jobs,
-    parse_indeed_jobs,
-)
+from bs4 import BeautifulSoup
+from sqlmodel import Session
+
+from app.db.session import engine
+from app.services.designation import Designation, list_designations
 from app.services.fetchers.page_fetcher import fetch_page
 from app.services.fetchers.playwright import fetch_page_with_browser
-from app.services.designation import Designation, list_designations
-from sqlmodel import Session
-from app.db.session import engine
-from bs4 import BeautifulSoup
+from app.services.parsers import (
+    parse_hirist_jobs,
+    parse_indeed_jobs,
+    parse_linkedin_jobs,
+)
 
 # Central definition of sources (VERY IMPORTANT)
 SOURCES = {
@@ -56,10 +57,7 @@ def fetch_jobs_for_designation(
         try:
             title = designation.title.replace(" ", "%20")
             slug = designation.title.replace(" ", "-").lower()
-            url = source["url"].format(
-                title=title,
-                slug=slug
-            )
+            url = source["url"].format(title=title, slug=slug)
             html = source["fetcher"](url)
             soup = BeautifulSoup(html, "html.parser")
             jobs = source["parser"](soup)

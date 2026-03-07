@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Optional
 
+from pydantic import BaseModel
 from sqlmodel import Field, SQLModel
+
+from app.models.enums import JobStatus
 
 
 class UserJob(SQLModel, table=True):
@@ -11,14 +14,11 @@ class UserJob(SQLModel, table=True):
     status: str = Field(
         default="saved",
         index=True,
-        description="saved | applied | interviewed | rejected | irrelevant"
+        description="saved | applied | interviewed | rejected | irrelevant",
     )
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
-
-from pydantic import BaseModel
-from app.models.enums import JobStatus
 
 
 class UserJobCreateUpdate(BaseModel):

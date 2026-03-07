@@ -37,9 +37,10 @@ export default function App() {
                                 <Link to="/user-designation">Manage User Designation</Link> |{' '}
                                 <Link to="/jobs">List All Jobs</Link> |{' '}
                                 <Link to="/jobs/applied">List Applied Jobs</Link> |{' '}
-                                <Link to="/jobs/interviewing">List Interviewing Jobs</Link> |{' '}
-                                <Link to="/jobs/rejected">List Rejected Jobs</Link>
-
+                                <Link to="/jobs/interviewed">List Interviewed Jobs</Link> |{' '}
+                                <Link to="/jobs/rejected">List Rejected Jobs</Link> |{' '}
+                                <Link to="/jobs/irrelevant">List Irrelevant Jobs</Link> |{' '}
+                                <Link to="/jobs/saved">List Saved Jobs</Link>
                                 | <button onClick={() => { localStorage.removeItem('access_token'); setLoggedIn(false); window.dispatchEvent(new Event('authchange')) }}>Logout</button>
                             </>
                         )}
@@ -53,6 +54,7 @@ export default function App() {
                         <Route path="/designations" element={<Designations />} />
                         <Route path="/user-designation" element={<UserDesignation />} />
                         <Route path="/jobs" element={<Jobs />} />
+                        <Route path="/jobs/:status" element={<Jobs />} />
                     </Routes>
                 </main>
             </div>

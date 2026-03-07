@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from app.core.auth import get_current_user
 from app.db.session import get_session
-from app.models.designation import (Designation, DesignationCreate,
-                                    DesignationRead)
-from app.services.designation import create_designation as create_designation_service, list_designations as list_designations_service
+from app.models.designation import DesignationCreate, DesignationRead
+from app.services.designation import create_designation as create_designation_service
+from app.services.designation import list_designations as list_designations_service
 
 router = APIRouter(prefix="/designation", tags=["designation"])
 

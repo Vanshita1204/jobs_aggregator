@@ -15,11 +15,7 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
 def create_access_token(user_id: int) -> str:
-    payload = {
-        "sub": str(user_id),
-        "exp": datetime.utcnow()
-        + timedelta(minutes=60)
-    }
+    payload = {"sub": str(user_id), "exp": datetime.utcnow() + timedelta(minutes=60)}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
@@ -28,9 +24,7 @@ def get_current_user(
     session: Session = Depends(get_session),
 ):
     try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms="HS256"
-        )
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms="HS256")
         user_id = payload.get("sub")
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token")

@@ -4,10 +4,14 @@ from sqlmodel import Session
 from app.core.auth import get_current_user
 from app.db.session import get_session
 from app.models.user import User
-from app.models.userdesignation import (UserDesignationCreate,
-                                        UserDesignationRead)
-from app.services.userdesignation import (create_user_designation,
-                                          delete_user_designation, list_user_designations as list_user_designations_service)
+from app.models.userdesignation import UserDesignationCreate, UserDesignationRead
+from app.services.userdesignation import (
+    create_user_designation,
+    delete_user_designation,
+)
+from app.services.userdesignation import (
+    list_user_designations as list_user_designations_service,
+)
 
 router = APIRouter(prefix="/user-designation", tags=["user-designation"])
 

@@ -6,21 +6,17 @@ from sqlmodel import Field, SQLModel
 
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
-
     email: str = Field(unique=True, index=True)
     full_name: str
     hashed_password: str
-
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
     last_login: datetime | None = Field(default=None)
-
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
 class UserCreate(SQLModel):
-    """Request model for creating a user (sent by client)."""
 
     email: str
     full_name: str
@@ -28,7 +24,6 @@ class UserCreate(SQLModel):
 
 
 class UserRead(SQLModel):
-    """Response model returned to clients (omits hashed password)."""
 
     id: Optional[int]
     email: str
