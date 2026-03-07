@@ -6,8 +6,8 @@ from app.db.session import get_session
 from app.models.user import User
 from app.models.userdesignation import UserDesignationCreate, UserDesignationRead
 from app.services.userdesignation import (
-    create_user_designation,
-    delete_user_designation,
+    create_user_designation as create_user_designation_service,
+    delete_user_designation as delete_user_designation_service,
 )
 from app.services.userdesignation import (
     list_user_designations as list_user_designations_service,
@@ -16,33 +16,33 @@ from app.services.userdesignation import (
 router = APIRouter(prefix="/user-designation", tags=["user-designation"])
 
 
-@router.post("/add", response_model=UserDesignationRead)
+@router.post("", response_model=UserDesignationRead)
 def create_user_designation(
     payload: UserDesignationCreate,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     """Create a new user-designation association (body contains designation_id)."""
-    success, result = create_user_designation(payload, session, user.id)
+    success, result = create_user_designation_service(payload, session, user.id)
     if not success:
         raise HTTPException(status_code=400, detail=result)
     return result
 
 
-@router.post("/delete")
+@router.delete("")
 def delete_user_designation(
     user_designation_id: int,
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     """Delete a user-designation association."""
-    succcess, result = delete_user_designation(user_designation_id, session, user.id)
+    succcess, result = delete_user_designation_service(user_designation_id, session, user.id)
     if not succcess:
         raise HTTPException(status_code=400, detail=result)
     return result
 
 
-@router.post("/list", response_model=list[UserDesignationRead])
+@router.get("", response_model=list[UserDesignationRead])
 def list_user_designations(
     session: Session = Depends(get_session), user: User = Depends(get_current_user)
 ):

@@ -44,7 +44,7 @@ def delete_user_designation(user_designation_id: int, session: Session, user_id:
     user_designation = session.exec(
         select(UserDesignation).where(
             UserDesignation.id == user_designation_id,
-            UserDesignation.user_id == user.id,
+            UserDesignation.user_id == user_id,
         )
     ).first()
     if not user_designation:

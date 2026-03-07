@@ -10,8 +10,14 @@ const STATUS_LABELS = {
     saved: 'Saved',
 }
 
+const ACTION_STATUSES = [
+    'applied',
+    'interviewed',
+    'rejected'
+]
+
 export default function Jobs() {
-    const { status } = useParams() // URL is the source of truth
+    const { status } = useParams()
 
     const [jobs, setJobs] = useState([])
     const [loading, setLoading] = useState(false)
@@ -26,17 +32,12 @@ export default function Jobs() {
         setResult(null)
 
         let url = '/jobs'
-        if (status) {
-            url += `?status=${status}`
-        }
+        if (status) url += `?status=${status}`
 
         const res = await request(url, { method: 'GET' })
 
-        if (res.ok && res.data) {
-            setJobs(res.data)
-        } else {
-            setResult(res)
-        }
+        if (res.ok && res.data) setJobs(res.data)
+        else setResult(res)
 
         setLoading(false)
     }
@@ -51,7 +52,6 @@ export default function Jobs() {
         })
 
         if (res.ok) {
-            // Optimistic update
             setJobs(prev =>
                 prev.map(job =>
                     job.id === jobId
@@ -64,22 +64,55 @@ export default function Jobs() {
         }
     }
 
+    function renderActions(job) {
+        return (
+            <div className="job-actions">
+
+                {ACTION_STATUSES
+                    .filter(s => s !== status) // hide action for current page
+                    .map(s => (
+                        <button
+                            key={s}
+                            className="btn-action"
+                            disabled={job.user_status === s}
+                            onClick={() => updateJobStatus(job.id, s)}
+                        >
+                            {STATUS_LABELS[s]}
+                        </button>
+                    ))}
+
+                {status !== 'saved' && (
+                    <button
+                        className="btn-save"
+                        onClick={() => updateJobStatus(job.id, 'saved')}
+                    >
+                        Save
+                    </button>
+                )}
+
+                {status !== 'irrelevant' && (
+                    <button
+                        className="btn-danger"
+                        onClick={() => updateJobStatus(job.id, 'irrelevant')}
+                    >
+                        Irrelevant
+                    </button>
+                )}
+            </div>
+        )
+    }
+
     return (
         <section>
-            <div
-                style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                }}
-            >
+
+            <div className="jobs-header">
                 <h2>
                     {status
                         ? `${STATUS_LABELS[status]} Jobs`
                         : 'All Jobs'}
                 </h2>
 
-                <button onClick={fetchJobs} className="btn-ghost">
+                <button onClick={fetchJobs} className="btn-refresh">
                     Refresh
                 </button>
             </div>
@@ -90,120 +123,43 @@ export default function Jobs() {
                 <p>No jobs found.</p>
             )}
 
-            <ul style={{ listStyle: 'none', padding: 0 }}>
+            <ul className="jobs-list">
+
                 {jobs.map(job => (
-                    <li
-                        key={job.id}
-                        style={{
-                            display: 'flex',
-                            gap: 16,
-                            padding: 12,
-                            borderBottom: '1px solid var(--border)',
-                        }}
-                    >
-                        {/* Job info */}
+                    <li key={job.id} className="job-card">
+
                         <a
                             href={job.source_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{
-                                flex: 1,
-                                textDecoration: 'none',
-                                color: 'inherit',
-                            }}
+                            className="job-info"
                         >
-                            <div style={{ fontWeight: 600 }}>
+
+                            <div className="job-title">
                                 {job.title}
                             </div>
 
-                            <div
-                                style={{
-                                    color: 'var(--muted)',
-                                    marginTop: 6,
-                                }}
-                            >
-                                {job.company} •{' '}
-                                {job.location || 'Remote'}
+                            <div className="job-meta">
+                                {job.company} • {job.location || 'Remote'}
                             </div>
 
-                            <div
-                                style={{
-                                    fontSize: 12,
-                                    marginTop: 4,
-                                    color: 'var(--muted)',
-                                }}
-                            >
+                            <div className="job-source">
                                 {job.source}
                             </div>
 
                             {job.user_status && (
-                                <div
-                                    style={{
-                                        marginTop: 6,
-                                        fontSize: 12,
-                                        fontWeight: 500,
-                                        color:
-                                            job.user_status ===
-                                                'irrelevant'
-                                                ? '#b42318'
-                                                : 'var(--accent)',
-                                    }}
-                                >
-                                    Status:{' '}
-                                    {
-                                        STATUS_LABELS[
-                                        job.user_status
-                                        ]
-                                    }
+                                <div className="job-status">
+                                    {STATUS_LABELS[job.user_status]}
                                 </div>
                             )}
+
                         </a>
 
-                        {/* Status actions */}
-                        <div
-                            style={{
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                                minWidth: 120,
-                            }}
-                        >
-                            {[
-                                'applied',
-                                'interviewed',
-                                'rejected',
-                            ].map(s => (
-                                <button
-                                    key={s}
-                                    className="btn-ghost"
-                                    disabled={
-                                        job.user_status === s
-                                    }
-                                    onClick={() =>
-                                        updateJobStatus(job.id, s)
-                                    }
-                                >
-                                    {STATUS_LABELS[s]}
-                                </button>
-                            ))}
+                        {renderActions(job)}
 
-                            <button
-                                className="btn-danger"
-                                disabled={
-                                    job.user_status === 'irrelevant'
-                                }
-                                onClick={() =>
-                                    updateJobStatus(
-                                        job.id,
-                                        'irrelevant'
-                                    )
-                                }
-                            >
-                                Irrelevant
-                            </button>
-                        </div>
                     </li>
                 ))}
+
             </ul>
 
             {result && (
@@ -211,6 +167,7 @@ export default function Jobs() {
                     {JSON.stringify(result, null, 2)}
                 </pre>
             )}
+
         </section>
     )
 }

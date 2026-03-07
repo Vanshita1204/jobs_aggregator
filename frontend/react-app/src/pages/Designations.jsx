@@ -10,12 +10,11 @@ export default function Designations() {
 
     useEffect(() => {
         fetchData()
-        fetchCurrentUser()
     }, [])
 
     async function fetchData() {
-        // backend exposes POST /designation/list which returns list[DesignationRead]
-        const res = await request('/designation/list', { method: 'POST', auth: false })
+        // backend exposes GET /designation/list which returns list[DesignationRead]
+        const res = await request('/designation', { method: 'GET', auth: false })
         if (res.ok && res.data) setDesignations(res.data)
         else setDesignations([])
     }
@@ -28,7 +27,7 @@ export default function Designations() {
     async function createDesignation(e) {
         e.preventDefault()
         setResult(null)
-        const res = await request('/designation/add', { method: 'POST', body: { title }, auth: true })
+        const res = await request('/designation', { method: 'POST', body: { title }, auth: true })
         setResult(res)
         if (res.ok && res.data && res.data.id) {
             // automatically add designation to current user
@@ -41,7 +40,7 @@ export default function Designations() {
     }
 
     async function addDesignationToUser(designationId) {
-        const res = await request('/user-designation/add', { method: 'POST', body: { designation_id: designationId } })
+        const res = await request('/user-designation', { method: 'POST', body: { designation_id: designationId } })
         if (res.ok) {
             setAddedIds(prev => new Set(prev).add(designationId))
         }
@@ -49,10 +48,6 @@ export default function Designations() {
     }
 
     async function handleAddClick(designationId) {
-        if (!user || !user.id) {
-            setResult({ ok: false, status: 401, text: 'Not logged in' })
-            return
-        }
         const res = await addDesignationToUser(designationId)
         setResult(res)
     }
@@ -63,7 +58,7 @@ export default function Designations() {
 
             <form onSubmit={createDesignation}>
                 <input value={title} onChange={e => setTitle(e.target.value)} placeholder="new designation title" required />
-                <button type="submit">Create + Add to me</button>
+                <button type="submit">Create</button>
             </form>
 
             <h3>Available designations</h3>

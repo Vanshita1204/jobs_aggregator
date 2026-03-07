@@ -10,7 +10,7 @@ from app.services.designation import list_designations as list_designations_serv
 router = APIRouter(prefix="/designation", tags=["designation"])
 
 
-@router.post("/add", response_model=DesignationRead)
+@router.post("", response_model=DesignationRead)
 def create_designation(
     payload: DesignationCreate,
     session: Session = Depends(get_session),
@@ -23,7 +23,7 @@ def create_designation(
     return designation
 
 
-@router.post("/list", response_model=list[DesignationRead])
+@router.get("", response_model=list[DesignationRead])
 def list_designations(session: Session = Depends(get_session)):
     """List all designations."""
     designations = list_designations_service(session)

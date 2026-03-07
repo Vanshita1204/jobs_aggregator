@@ -13,9 +13,10 @@ export default function UserDesignation() {
 
     async function fetchData() {
         const [allRes, userRes] = await Promise.all([
-            request('/designation/list', { method: 'POST', auth: false }),
-            request('/user-designation/list', { method: 'POST' }),
+            request('/designation', { method: 'GET', auth: false }),
+            request('/user-designation', { method: 'GET' }),
         ])
+
         if (allRes.ok && allRes.data) setDesignations(allRes.data)
         else setDesignations([])
 
@@ -26,7 +27,7 @@ export default function UserDesignation() {
 
     async function deleteById(userDesignationId) {
         // backend expects user_designation_id as a query parameter, not in the JSON body
-        const res = await request(`/user-designation/delete?user_designation_id=${userDesignationId}`, { method: 'POST' })
+        const res = await request(`/user-designation?user_designation_id=${userDesignationId}`, { method: 'DELETE' })
         setResult(res)
         if (res.ok) setUserDesignations(prev => prev.filter(u => u.id !== userDesignationId))
     }
