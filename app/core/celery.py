@@ -19,6 +19,6 @@ celery_app.autodiscover_tasks(["app.services"])
 celery_app.conf.beat_schedule = {
     "fetch-jobs-daily": {
         "task": "app.services.tasks.job_fetching_task",
-        "schedule": crontab(hour=3, minute=2),  # once per day
+        "schedule": crontab(hour=0, minute=0),  # once per day
     },
 }
