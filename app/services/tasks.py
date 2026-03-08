@@ -1,14 +1,18 @@
 from sqlmodel import Session
 
+from app.core.celery import celery_app
 from app.db.session import engine
 from app.services.designation import list_designations
 from app.services.ingestion.job_fetcher import fetch_jobs_for_designation
 from app.services.jobs import create_job_records
-from app.core.celery import celery_app
 
 
-
-@celery_app.task(bind=True, autoretry_for=(Exception,), retry_backoff=60, retry_kwargs={"max_retries": 3})
+@celery_app.task(
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=60,
+    retry_kwargs={"max_retries": 3},
+)
 def job_fetching_task(self):
     """Background task to fetch jobs for all designations."""
 

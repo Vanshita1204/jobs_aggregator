@@ -1,3 +1,6 @@
+"""
+Job model represents a job.
+"""
 from datetime import datetime
 from typing import Optional
 
@@ -5,6 +8,9 @@ from sqlmodel import Field, SQLModel
 
 
 class Job(SQLModel, table=True):
+    """
+    Job model represents a job.
+    """
     id: int | None = Field(default=None, primary_key=True)
     title: str = Field(index=True)
     company: str = Field(index=True)
@@ -17,7 +23,10 @@ class Job(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=datetime.now)
 
 
-class JobCreate(SQLModel):
+class JobCreate(SQLModel):  
+    """
+    JobCreate model is used to create a new job.
+    """
     title: str
     company: str
     location: Optional[str] = None
@@ -28,6 +37,9 @@ class JobCreate(SQLModel):
 
 
 class JobRead(SQLModel):
+    """
+    JobRead model is used to read a job.
+    """
     id: Optional[int]
     title: str
     company: str
@@ -40,11 +52,3 @@ class JobRead(SQLModel):
     updated_at: datetime
 
 
-class JobUpdate(SQLModel):
-    title: Optional[str] = None
-    company: Optional[str] = None
-    location: Optional[str] = None
-    description: Optional[str] = None
-    source: Optional[str] = None
-    source_url: Optional[str] = None
-    designation_id: Optional[int] = None

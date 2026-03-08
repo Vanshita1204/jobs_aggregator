@@ -1,3 +1,6 @@
+"""
+Designation service.
+"""
 from sqlmodel import Session, select
 
 from app.models.designation import Designation, DesignationCreate
@@ -5,8 +8,6 @@ from app.models.designation import Designation, DesignationCreate
 
 def create_designation(payload: DesignationCreate, session: Session, user_id: int):
     """Create a new designation ."""
-    from app.services.ingestion.job_fetcher import fetch_jobs_for_designation
-
     existing = session.exec(
         select(Designation).where(Designation.title == payload.title)
     ).first()
@@ -17,7 +18,6 @@ def create_designation(payload: DesignationCreate, session: Session, user_id: in
     session.add(designation)
     session.commit()
     session.refresh(designation)
-    fetch_jobs_for_designation(designation)
     return True, designation
 
 

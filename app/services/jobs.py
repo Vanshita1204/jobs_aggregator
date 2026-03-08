@@ -1,13 +1,19 @@
-from sqlalchemy import and_
+"""
+Jobs service.
+"""
+from sqlalchemy import and_, func
 from sqlmodel import Session, select
 
 from app.db.session import engine
+from app.models.enums import JobStatus
 from app.models.job import Job
 from app.models.userdesignation import UserDesignation
 from app.models.userjob import UserJob
-from app.models.enums import JobStatus
+from app.models.userjobpreference import UserJobPreference
+
 
 def create_job_records(jobs, designation: int):
+    """Create job records."""
     # Prepare jobs for insertion: attach designation_id and ensure required fields
     to_insert = []
     for j in jobs:
@@ -38,8 +44,16 @@ def create_job_records(jobs, designation: int):
             session.commit()
 
 
-
 def fetch_job_records(session: Session, user_id: int, status: JobStatus | None = None):
+    """Fetch job records."""
+
+    # Load excluded keywords for this user (case-insensitive, normalized later)
+    excluded_keywords = session.exec(
+        select(UserJobPreference.keyword).where(
+            UserJobPreference.user_id == user_id,
+            UserJobPreference.is_excluded.is_(True),
+        )
+    ).all()
 
     if not status:
         stmt = (
@@ -78,5 +92,18 @@ def fetch_job_records(session: Session, user_id: int, status: JobStatus | None =
             .where(UserDesignation.user_id == user_id)
             .order_by(Job.created_at.desc())
         )
+
+    # Apply case-insensitive exclusions on normalized job titles for all excluded keywords.
+    # Normalize both job title and keyword by removing spaces and hyphens so that
+    # strings like "frontend", "front end", and "front-end" are treated the same.
+    if excluded_keywords:
+        normalized_title = func.replace(
+            func.replace(func.lower(Job.title), " ", ""),
+            "-",
+            "",
+        )
+        for keyword in excluded_keywords:
+            normalized_keyword = keyword.replace(" ", "").replace("-", "").lower()
+            stmt = stmt.where(~normalized_title.like(f"%{normalized_keyword}%"))
 
     return session.exec(stmt).all()
