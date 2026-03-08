@@ -3,11 +3,11 @@ Jobs service.
 """
 
 from datetime import datetime, timedelta
+
 from sqlalchemy import and_, func
-from sqlmodel import Session, select, case
+from sqlmodel import Session, case, select
 
 from app.core.config import settings
-
 from app.db.session import engine
 from app.models.enums import JobStatus
 from app.models.job import Job
@@ -96,7 +96,7 @@ def fetch_job_records(session: Session, user_id: int, status: JobStatus | None =
                 stmt = stmt.where(~normalized_title.like(f"%{normalized_keyword}%"))
 
         results = session.exec(stmt).all()
-        results= [{**job.model_dump(), "is_new": is_new} for job, is_new in results]
+        results = [{**job.model_dump(), "is_new": is_new} for job, is_new in results]
         return results
 
     stmt = (

@@ -42,7 +42,9 @@ def parse_indeed_jobs(soup):
             else "N/A"
         )
         source_url = "https://www.indeed.com" + job.select_one("a")["href"]
-        print(f"Title: {title}, Company: {company}, Location: {location}, Source: Indeed")
+        print(
+            f"Title: {title}, Company: {company}, Location: {location}, Source: Indeed"
+        )
         jobs.append(
             {
                 "title": title,
@@ -71,7 +73,9 @@ def parse_hirist_jobs(soup):
         company = data.split(" - ")[0]
         location = location.get_text(strip=True)
         job_url = "https://www.hirist.tech" + link_el["href"]
-        print(f"Title: {title}, Company: {company}, Location: {location}, Source: Hirist")
+        print(
+            f"Title: {title}, Company: {company}, Location: {location}, Source: Hirist"
+        )
 
         jobs.append(
             {

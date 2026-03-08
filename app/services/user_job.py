@@ -1,9 +1,5 @@
 from datetime import datetime, timezone
 
-from sqlmodel import Session, select
-
-from app.models.enums import JobStatus
-from app.models.userjob import UserJob
 from sqlalchemy import and_, func
 from sqlmodel import Session, select
 

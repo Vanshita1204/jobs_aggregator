@@ -11,8 +11,8 @@ from app.models.enums import JobStatus
 from app.models.job import JobRead
 from app.models.user import User
 from app.services.jobs import fetch_job_records
-from app.services.userdesignation import list_user_designations
 from app.services.tasks import job_fetching_task_designation
+from app.services.userdesignation import list_user_designations
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
