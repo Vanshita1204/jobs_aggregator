@@ -30,6 +30,7 @@ def job_fetching_task(self):
             except Exception as e:
                 print(f"Failed for designation {desig.title}: {e}")
 
+
 @celery_app.task(
     bind=True,
     autoretry_for=(Exception,),
@@ -39,7 +40,7 @@ def job_fetching_task(self):
 def job_fetching_task_designation(self, designation_id):
     """Background task to fetch jobs for all designations."""
     with Session(engine) as session:
-        desig = Designation(id= designation_id)
+        desig = Designation(id=designation_id)
 
         try:
             jobs = fetch_jobs_for_designation(designation=desig)

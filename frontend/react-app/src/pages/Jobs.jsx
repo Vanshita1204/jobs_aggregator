@@ -46,6 +46,23 @@ export default function Jobs() {
 
         setLoading(false)
     }
+    async function fetchNewJobs() {
+        setLoading(true)
+        setResult(null)
+    
+        const res = await request('/jobs/fetch-new', { method: 'POST' })
+    
+        if (!res.ok) {
+            setResult(res)
+            setLoading(false)
+            return
+        }
+    
+        // Give scraper some time to insert jobs
+        setTimeout(fetchJobs, 3000)
+    
+        setLoading(false)
+    }
 
     async function updateJobStatus(jobId, newStatus) {
         const res = await request('/user-jobs', {
@@ -197,17 +214,25 @@ export default function Jobs() {
     return (
         <section>
 
-            <div className="jobs-header">
-                <h2>
-                    {status
-                        ? `${STATUS_LABELS[status]} Jobs`
-                        : 'All Jobs'}
-                </h2>
+        <div className="jobs-header">
+            <h2>
+                {status
+                    ? `${STATUS_LABELS[status]} Jobs`
+                    : 'All Jobs'}
+            </h2>
+
+            <div className="jobs-header-actions">
+                {!status && (
+                    <button onClick={fetchNewJobs} className="btn-fetch-new">
+                        Fetch New
+                    </button>
+                )}
 
                 <button onClick={fetchJobs} className="btn-refresh">
                     Refresh
                 </button>
             </div>
+        </div>
 
             {loading && <p>Loading jobs…</p>}
 
@@ -227,9 +252,15 @@ export default function Jobs() {
                             className="job-info"
                         >
 
-                            <div className="job-title">
-                                {job.title}
-                            </div>
+                        <div className="job-title">
+                            {job.title}
+
+                            {!status && job.is_new && (
+                                <span className="job-new-badge">
+                                    NEW
+                                </span>
+                            )}
+                        </div>
 
                             <div className="job-meta">
                                 {job.company} • {job.location || 'Remote'}

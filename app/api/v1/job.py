@@ -29,16 +29,21 @@ def list_user_jobs(
         raise HTTPException(status_code=400, detail="Authenticated user has no id")
     return fetch_job_records(session=session, user_id=user_id, status=status)
 
+
 @router.post("/fetch-new")
-def fetch_new_jobs(session: Session = Depends(get_session),
-    user: User = Depends(get_current_user),):
+def fetch_new_jobs(
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     """fetch latest jobs"""
-    user_id= user.id
+    user_id = user.id
     if user_id is None:
         raise HTTPException(status_code=400, detail="Authenticated user has no id")
-    success, user_designations = list_user_designations(session=session, user_id=user_id)
+    success, user_designations = list_user_designations(
+        session=session, user_id=user_id
+    )
     for user_designation in user_designations:
-        job_fetching_task_designation.delay(designation_id=user_designation.designation_id)
+        job_fetching_task_designation.delay(
+            designation_id=user_designation.designation_id
+        )
     return success
-    
-    

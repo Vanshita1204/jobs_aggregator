@@ -1,6 +1,7 @@
 """
 Auth utilities.
 """
+
 from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException
@@ -19,7 +20,7 @@ pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 def create_access_token(user_id: int) -> str:
     """Create an access token for a user."""
-    payload = {"sub": str(user_id), "exp": datetime.utcnow() + timedelta(minutes=60)}
+    payload = {"sub": str(user_id), "exp": datetime.now() + timedelta(minutes=60)}
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 

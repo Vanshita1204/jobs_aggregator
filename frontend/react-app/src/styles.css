@@ -265,3 +265,13 @@ li span {
 .job-actions button {
     min-width: 90px;
 }
+.jobs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.jobs-header-actions {
+    display: flex;
+    gap: 10px;
+}

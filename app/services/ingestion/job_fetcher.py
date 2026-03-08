@@ -12,24 +12,24 @@ from app.services.parsers import (
 
 # Central definition of sources (VERY IMPORTANT)
 SOURCES = {
-    "hirist": {
-        "url": (
-            "https://www.hirist.tech/search/{slug}"
-            "?loc=&minexp=0&maxexp=0&posting=3"
-            "&ref=homepage&query={title}&sort=&industry="
-        ),
-        "parser": parse_hirist_jobs,
-        "fetcher": fetch_page_with_browser,
-    },
-    "linkedin": {
-        "url": (
-            "https://www.linkedin.com/jobs/search"
-            "?keywords={title}&location=India&geoId=102713980"
-            "&f_TPR=r86400&f_JT=F&position=1&pageNum=0"
-        ),
-        "parser": parse_linkedin_jobs,
-        "fetcher": fetch_page,
-    },
+    # "hirist": {
+    #     "url": (
+    #         "https://www.hirist.tech/search/{slug}"
+    #         "?loc=&minexp=0&maxexp=0&posting=3"
+    #         "&ref=homepage&query={title}&sort=&industry="
+    #     ),
+    #     "parser": parse_hirist_jobs,
+    #     "fetcher": fetch_page_with_browser,
+    # },
+    # "linkedin": {
+    #     "url": (
+    #         "https://www.linkedin.com/jobs/search"
+    #         "?keywords={title}&location=India&geoId=102713980"
+    #         "&f_TPR=r86400&f_JT=F&position=1&pageNum=0"
+    #     ),
+    #     "parser": parse_linkedin_jobs,
+    #     "fetcher": fetch_page,
+    # },
     "indeed": {
         "url": (
             "https://in.indeed.com/jobs"
@@ -59,6 +59,7 @@ def fetch_jobs_for_designation(
             url = source["url"].format(title=title, slug=slug)
             html = source["fetcher"](url)
             soup = BeautifulSoup(html, "html.parser")
+            breakpoint()
             jobs = source["parser"](soup)
             all_jobs.extend(jobs)
         except Exception:

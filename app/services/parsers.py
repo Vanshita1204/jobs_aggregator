@@ -1,6 +1,7 @@
 def parse_linkedin_jobs(soup):
     """Parse LinkedIn job postings from the soup object."""
     jobs = []
+    return
     template = soup.select("body  main > section:nth-of-type(2) > ul > li")
     for job in template:
         data = job.select("div:nth-of-type(2)")[0]
@@ -26,6 +27,7 @@ def parse_linkedin_jobs(soup):
 def parse_indeed_jobs(soup):
     """Parse Indeed job postings from the soup object."""
     jobs = []
+    breakpoint()
     template = soup.select("td")
     for job in template:
         title = job.select("a")[0].text.strip() if job.select("a")[0] else "N/A"
@@ -40,7 +42,7 @@ def parse_indeed_jobs(soup):
             else "N/A"
         )
         source_url = "https://www.indeed.com" + job.select_one("a")["href"]
-        print(f"Title: {title}, Company: {company}, Location: {location}")
+        print(f"Title: {title}, Company: {company}, Location: {location}, Source: Indeed")
         jobs.append(
             {
                 "title": title,
@@ -56,6 +58,7 @@ def parse_indeed_jobs(soup):
 def parse_hirist_jobs(soup):
     """Parse Hirist job postings from the soup object."""
     jobs = []
+    return
     template = soup.select("div.joblist-card-v2")
     for job in template:
         title = job.select_one('[data-testid="job_title"]')
@@ -68,14 +71,14 @@ def parse_hirist_jobs(soup):
         company = data.split(" - ")[0]
         location = location.get_text(strip=True)
         job_url = "https://www.hirist.tech" + link_el["href"]
-        print(f"Title: {title}, Company: {company}, Location: {location}")
+        print(f"Title: {title}, Company: {company}, Location: {location}, Source: Hirist")
 
         jobs.append(
             {
                 "title": title,
                 "company": company,
                 "location": location,
-                "url": job_url,
+                "source_url": job_url,
                 "source": "Hirist",
             }
         )

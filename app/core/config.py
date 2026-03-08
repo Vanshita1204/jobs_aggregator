@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     ENV: str = "development"
     SECRET_KEY: str
     DATABASE_URL: str
+    NEW_JOB_THRESHOLD_HOURS: int = 24
 
     model_config = SettingsConfigDict(
         env_file=".env",

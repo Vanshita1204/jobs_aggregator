@@ -1,6 +1,7 @@
 """
 Auth service.
 """
+
 from sqlmodel import Session, select
 
 from app.core.auth import create_access_token, hash_password, verify_password

@@ -1,8 +1,12 @@
 """
 Jobs service.
 """
+
+from datetime import datetime, timedelta
 from sqlalchemy import and_, func
-from sqlmodel import Session, select
+from sqlmodel import Session, select, case
+
+from app.core.config import settings
 
 from app.db.session import engine
 from app.models.enums import JobStatus
@@ -47,17 +51,23 @@ def create_job_records(jobs, designation: int):
 def fetch_job_records(session: Session, user_id: int, status: JobStatus | None = None):
     """Fetch job records."""
 
-    # Load excluded keywords for this user (case-insensitive, normalized later)
-    excluded_keywords = session.exec(
-        select(UserJobPreference.keyword).where(
-            UserJobPreference.user_id == user_id,
-            UserJobPreference.is_excluded.is_(True),
-        )
-    ).all()
-
     if not status:
+        excluded_keywords = session.exec(
+            select(UserJobPreference.keyword).where(
+                UserJobPreference.user_id == user_id,
+                UserJobPreference.is_excluded.is_(True),
+            )
+        ).all()
+
+        threshold_time = datetime.now() - timedelta(
+            hours=settings.NEW_JOB_THRESHOLD_HOURS
+        )
+        is_new_col = case(
+            (Job.created_at > threshold_time, True),
+            else_=False,
+        ).label("is_new")
         stmt = (
-            select(Job)
+            select(Job, is_new_col)
             .join(
                 UserDesignation,
                 Job.designation_id == UserDesignation.designation_id,
@@ -74,36 +84,37 @@ def fetch_job_records(session: Session, user_id: int, status: JobStatus | None =
             .order_by(Job.created_at.desc())
         )
 
-    else:
-        stmt = (
-            select(Job)
-            .join(
-                UserDesignation,
-                Job.designation_id == UserDesignation.designation_id,
+        if excluded_keywords:
+            normalized_title = func.replace(
+                func.replace(func.lower(Job.title), " ", ""),
+                "-",
+                "",
             )
-            .join(
-                UserJob,
-                and_(
-                    UserJob.job_id == Job.id,
-                    UserJob.user_id == user_id,
-                    UserJob.status == status,
-                ),
-            )
-            .where(UserDesignation.user_id == user_id)
-            .order_by(Job.created_at.desc())
-        )
 
-    # Apply case-insensitive exclusions on normalized job titles for all excluded keywords.
-    # Normalize both job title and keyword by removing spaces and hyphens so that
-    # strings like "frontend", "front end", and "front-end" are treated the same.
-    if excluded_keywords:
-        normalized_title = func.replace(
-            func.replace(func.lower(Job.title), " ", ""),
-            "-",
-            "",
+            for keyword in excluded_keywords:
+                normalized_keyword = keyword.replace(" ", "").replace("-", "").lower()
+                stmt = stmt.where(~normalized_title.like(f"%{normalized_keyword}%"))
+
+        results = session.exec(stmt).all()
+        results= [{**job.model_dump(), "is_new": is_new} for job, is_new in results]
+        return results
+
+    stmt = (
+        select(Job)
+        .join(
+            UserDesignation,
+            Job.designation_id == UserDesignation.designation_id,
         )
-        for keyword in excluded_keywords:
-            normalized_keyword = keyword.replace(" ", "").replace("-", "").lower()
-            stmt = stmt.where(~normalized_title.like(f"%{normalized_keyword}%"))
+        .join(
+            UserJob,
+            and_(
+                UserJob.job_id == Job.id,
+                UserJob.user_id == user_id,
+                UserJob.status == status,
+            ),
+        )
+        .where(UserDesignation.user_id == user_id)
+        .order_by(Job.created_at.desc())
+    )
 
     return session.exec(stmt).all()

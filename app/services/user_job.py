@@ -50,10 +50,10 @@ def fetch_job_records(
     """
     if status is None:
         excluded_keywords = session.exec(
-        select(UserJobPreference.keyword).where(
-            UserJobPreference.user_id == user_id,
-            UserJobPreference.is_excluded.is_(True),
-        )
+            select(UserJobPreference.keyword).where(
+                UserJobPreference.user_id == user_id,
+                UserJobPreference.is_excluded.is_(True),
+            )
         ).all()
         stmt = (
             select(Job)
@@ -75,10 +75,8 @@ def fetch_job_records(
         for keyword in excluded_keywords:
             normalized_keyword = keyword.replace(" ", "").replace("-", "").lower()
             normalized_title = func.replace(
-            func.replace(func.lower(Job.title), " ", ""),
-            "-",
-            ""
-        )
+                func.replace(func.lower(Job.title), " ", ""), "-", ""
+            )
             stmt = stmt.where(~normalized_title.like(f"%{normalized_keyword}%"))
     else:
         stmt = (

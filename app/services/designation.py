@@ -1,6 +1,7 @@
 """
 Designation service.
 """
+
 from sqlmodel import Session, select
 
 from app.models.designation import Designation, DesignationCreate
