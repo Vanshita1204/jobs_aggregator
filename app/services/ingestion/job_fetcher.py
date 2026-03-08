@@ -1,8 +1,7 @@
 from bs4 import BeautifulSoup
-from sqlmodel import Session
 
 from app.db.session import engine
-from app.services.designation import Designation, list_designations
+from app.services.designation import Designation
 from app.services.fetchers.page_fetcher import fetch_page
 from app.services.fetchers.playwright import fetch_page_with_browser
 from app.services.parsers import (
@@ -53,7 +52,7 @@ def fetch_jobs_for_designation(
     """
 
     all_jobs: list[dict] = []
-    for source_name, source in SOURCES.items():
+    for _, source in SOURCES.items():
         try:
             title = designation.title.replace(" ", "%20")
             slug = designation.title.replace(" ", "-").lower()
