@@ -1,3 +1,7 @@
+"""
+Auth API endpoints.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session
@@ -10,17 +14,17 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register")
-def register(
-    payload: UserCreate, session: Session = Depends(get_session)
-):
+def register(payload: UserCreate, session: Session = Depends(get_session)):
+    """Register a new user."""
     return register_user(session, payload.email, payload.password, payload.full_name)
 
 
 @router.post("/login")
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
 ):
+    """Login a user."""
     token = login_user(session, form_data.username, form_data.password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")

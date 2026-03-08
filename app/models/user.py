@@ -1,3 +1,7 @@
+"""
+User model represents a user.
+"""
+
 from datetime import datetime
 from typing import Optional
 
@@ -5,6 +9,10 @@ from sqlmodel import Field, SQLModel
 
 
 class User(SQLModel, table=True):
+    """
+    User model represents a user.
+    """
+
     id: int | None = Field(default=None, primary_key=True)
     email: str = Field(unique=True, index=True)
     full_name: str
@@ -17,6 +25,9 @@ class User(SQLModel, table=True):
 
 
 class UserCreate(SQLModel):
+    """
+    UserCreate model is used to create a new user.
+    """
 
     email: str
     full_name: str
@@ -24,6 +35,9 @@ class UserCreate(SQLModel):
 
 
 class UserRead(SQLModel):
+    """
+    UserRead model is used to read a user.
+    """
 
     id: Optional[int]
     email: str

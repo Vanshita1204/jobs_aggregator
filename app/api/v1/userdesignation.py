@@ -1,3 +1,7 @@
+"""
+UserDesignation API endpoints.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session
 
@@ -7,6 +11,8 @@ from app.models.user import User
 from app.models.userdesignation import UserDesignationCreate, UserDesignationRead
 from app.services.userdesignation import (
     create_user_designation as create_user_designation_service,
+)
+from app.services.userdesignation import (
     delete_user_designation as delete_user_designation_service,
 )
 from app.services.userdesignation import (
@@ -23,7 +29,10 @@ def create_user_designation(
     user: User = Depends(get_current_user),
 ):
     """Create a new user-designation association (body contains designation_id)."""
-    success, result = create_user_designation_service(payload, session, user.id)
+    user_id = user.id
+    if user_id is None:
+        raise HTTPException(status_code=400, detail="Authenticated user has no id")
+    success, result = create_user_designation_service(payload, session, user_id)
     if not success:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -36,7 +45,12 @@ def delete_user_designation(
     user: User = Depends(get_current_user),
 ):
     """Delete a user-designation association."""
-    succcess, result = delete_user_designation_service(user_designation_id, session, user.id)
+    user_id = user.id
+    if user_id is None:
+        raise HTTPException(status_code=400, detail="Authenticated user has no id")
+    succcess, result = delete_user_designation_service(
+        user_designation_id, session, user_id
+    )
     if not succcess:
         raise HTTPException(status_code=400, detail=result)
     return result
@@ -47,7 +61,10 @@ def list_user_designations(
     session: Session = Depends(get_session), user: User = Depends(get_current_user)
 ):
     """List all user-designation associations for the current user."""
-    success, user_designations = list_user_designations_service(session, user.id)
+    user_id = user.id
+    if user_id is None:
+        raise HTTPException(status_code=400, detail="Authenticated user has no id")
+    success, user_designations = list_user_designations_service(session, user_id)
     if not success:
         raise HTTPException(status_code=400, detail="Could not fetch user designations")
     return user_designations
