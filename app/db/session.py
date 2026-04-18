@@ -2,11 +2,10 @@ from typing import Generator
 
 from sqlmodel import Session, create_engine
 
-# SQLite file-based DB for local development. Change to env var/DSN in production.
-DATABASE_URL = "sqlite:///./jobs.db"
+from app.core.config import settings
 
 # echo=True will print SQL statements; keep False for quieter output
-engine = create_engine(DATABASE_URL, echo=False)
+engine = create_engine(settings.DATABASE_URL, echo=False)
 
 
 def get_session() -> Generator[Session, None, None]:

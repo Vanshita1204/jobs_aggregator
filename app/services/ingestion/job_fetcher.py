@@ -2,7 +2,6 @@ from bs4 import BeautifulSoup
 
 from app.db.session import engine
 from app.services.designation import Designation
-from app.services.fetchers.page_fetcher import fetch_page
 from app.services.fetchers.playwright import fetch_page_with_browser
 from app.services.parsers import (
     parse_hirist_jobs,
@@ -12,34 +11,34 @@ from app.services.parsers import (
 
 # Central definition of sources (VERY IMPORTANT)
 SOURCES = {
-    # "hirist": {
-    #     "url": (
-    #         "https://www.hirist.tech/search/{slug}"
-    #         "?loc=&minexp=0&maxexp=0&posting=3"
-    #         "&ref=homepage&query={title}&sort=&industry="
-    #     ),
-    #     "parser": parse_hirist_jobs,
-    #     "fetcher": fetch_page_with_browser,
-    # },
-    # "linkedin": {
-    #     "url": (
-    #         "https://www.linkedin.com/jobs/search"
-    #         "?keywords={title}&location=India&geoId=102713980"
-    #         "&f_TPR=r86400&f_JT=F&position=1&pageNum=0"
-    #     ),
-    #     "parser": parse_linkedin_jobs,
-    #     "fetcher": fetch_page,
-    # },
-    "indeed": {
+    "hirist": {
         "url": (
-            "https://in.indeed.com/jobs"
-            "?q={title}&l=india&fromage=1"
-            "&sc=0kf%3Aattr%28CF3CP%29%3B"
-            "&from=searchOnDesktopSerp"
+            "https://www.hirist.tech/search/{slug}"
+            "?loc=&minexp=0&maxexp=0&posting=3"
+            "&ref=homepage&query={title}&sort=&industry="
         ),
-        "parser": parse_indeed_jobs,
+        "parser": parse_hirist_jobs,
         "fetcher": fetch_page_with_browser,
     },
+    "linkedin": {
+        "url": (
+            "https://www.linkedin.com/jobs/search"
+            "?keywords={title}&location=India&geoId=102713980"
+            "&f_TPR=r86400&f_JT=F&position=1&pageNum=0"
+        ),
+        "parser": parse_linkedin_jobs,
+        "fetcher": fetch_page_with_browser,
+    },
+    # "indeed": {
+    #     "url": (
+    #         "https://in.indeed.com/jobs"
+    #         "?q={title}&l=india&fromage=1"
+    #         "&sc=0kf%3Aattr%28CF3CP%29%3B"
+    #         "&from=searchOnDesktopSerp"
+    #     ),
+    #     "parser": parse_indeed_jobs,
+    #     "fetcher": fetch_page_with_browser,
+    # },
 }
 
 
@@ -59,11 +58,11 @@ def fetch_jobs_for_designation(
             url = source["url"].format(title=title, slug=slug)
             html = source["fetcher"](url)
             soup = BeautifulSoup(html, "html.parser")
-            breakpoint()
             jobs = source["parser"](soup)
             all_jobs.extend(jobs)
-        except Exception:
+        except Exception as err:
             # Best-effort ingestion: log later if needed
+            print(f"Error fetching/parsing from source: {err}")
             continue
 
     return all_jobs

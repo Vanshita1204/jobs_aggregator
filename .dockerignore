@@ -1,0 +1,46 @@
+# .dockerignore works exactly like .gitignore but for Docker.
+# When you run `docker build`, Docker sends the entire build context (directory) to the
+# Docker daemon. Large or irrelevant files bloat this transfer and slow down builds.
+# .dockerignore tells Docker what to exclude from that context.
+
+# Python virtualenv — large (~hundreds of MB), rebuilt inside the container
+env/
+venv/
+.venv/
+
+# Python bytecode — not needed, regenerated automatically
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Git history — not needed in the image
+.git/
+.gitignore
+
+# Documentation
+*.md
+
+# Local database — don't bake data into the image; use a volume instead
+jobs.db
+*.db
+
+# Celery scheduler state files
+celerybeat-schedule
+celerybeat-schedule-shm
+celerybeat-schedule-wal
+
+# Redis snapshot
+dump.rdb
+
+# Frontend code — the backend image doesn't need it
+frontend/
+
+# IDE files
+.vscode/
+.idea/
+
+# Environment files — never bake secrets into an image
+# docker-compose passes .env to containers at runtime via env_file
+.env
+.env.*

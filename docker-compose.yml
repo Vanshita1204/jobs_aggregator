@@ -1,0 +1,119 @@
+# ── What is docker-compose? ───────────────────────────────────────────────────
+# docker-compose is an orchestrator for multiple containers.
+# Instead of running `docker run ...` with a wall of flags for each service,
+# you describe everything here and start the entire stack with one command:
+#   docker compose up --build
+#
+# Key concepts used in this file:
+#   services  — each entry is a container (Redis, backend, etc.)
+#   networks  — containers on the same network can talk to each other by service name
+#               e.g. the backend connects to Redis via host "redis", not "localhost"
+#   volumes   — named storage that outlives containers
+#               when you `docker compose down`, containers are deleted but volumes survive
+#   depends_on — controls startup order (but NOT readiness — use healthchecks for that)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  # Celery's message broker. Celery worker polls Redis for tasks to execute.
+  # We use the official image — no custom Dockerfile needed.
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # expose vs ports:
+    #   expose: makes the port reachable by OTHER containers only (not your laptop)
+    #   ports:  maps host_port:container_port, accessible from your laptop too
+    # Redis doesn't need to be accessed from outside Docker, so expose is enough.
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (FastAPI) ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .            # Docker sends everything in this directory as the build context
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"         # Your laptop:8000 → container:8000
+    env_file:
+      - .env                # Loads KEY=VALUE pairs from .env into the container's environment
+    environment:
+      # Override specific vars for Docker (these take precedence over .env):
+      PLAYWRIGHT_HEADLESS: "true"   # Containers have no display server; must run headless
+      DATABASE_URL: "sqlite:////app/data/jobs.db"  # Absolute path inside container
+      REDIS_URL: "redis://redis:6379/0"  # "redis" = service name on the Docker network
+    volumes:
+      # Named volume mounted at /app/data — SQLite DB lives here.
+      # Data survives container restarts and rebuilds.
+      - db_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy  # Wait until Redis passes its healthcheck
+
+  # ── Celery Worker ──────────────────────────────────────────────────────────
+  # Same image as backend. `command` overrides the Dockerfile's CMD.
+  # This is a common Docker pattern: one image, multiple roles via different commands.
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.core.celery:celery_app worker -l info
+    env_file:
+      - .env
+    environment:
+      PLAYWRIGHT_HEADLESS: "true"
+      DATABASE_URL: "sqlite:////app/data/jobs.db"
+      REDIS_URL: "redis://redis:6379/0"
+    volumes:
+      - db_data:/app/data   # Shares the same volume as backend so both see the same DB
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  # ── Celery Beat ────────────────────────────────────────────────────────────
+  # The periodic task scheduler. Sends task messages to Redis on a schedule.
+  # IMPORTANT: only ever run ONE beat instance — multiple beats = duplicate tasks.
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.core.celery:celery_app beat -l info
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "sqlite:////app/data/jobs.db"
+      REDIS_URL: "redis://redis:6379/0"
+    volumes:
+      - db_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── Frontend (React → nginx) ───────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend/react-app
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:80"           # Your laptop:3000 → nginx inside container:80
+    depends_on:
+      - backend
+
+# ── Named Volumes ──────────────────────────────────────────────────────────────
+# Declaring a volume here registers it with Docker.
+# All services that mount db_data share the same underlying storage.
+# To inspect: docker volume inspect jobs_aggregator_db_data
+# To wipe data: docker compose down -v  (WARNING: deletes the volume)
+volumes:
+  db_data:

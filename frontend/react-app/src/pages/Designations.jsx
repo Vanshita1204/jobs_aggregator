@@ -7,6 +7,7 @@ export default function Designations() {
     const [result, setResult] = useState(null)
     const [user, setUser] = useState(null)
     const [addedIds, setAddedIds] = useState(new Set())
+    const [titleError, setTitleError] = useState('')
 
     useEffect(() => {
         fetchData()
@@ -27,6 +28,16 @@ export default function Designations() {
     async function createDesignation(e) {
         e.preventDefault()
         setResult(null)
+        setTitleError('')
+
+        const duplicate = designations.find(
+            d => d.title.toLowerCase() === title.trim().toLowerCase()
+        )
+        if (duplicate) {
+            setTitleError('A designation with this name already exists.')
+            return
+        }
+
         const res = await request('/designation', { method: 'POST', body: { title }, auth: true })
         setResult(res)
         if (res.ok && res.data && res.data.id) {
@@ -57,8 +68,18 @@ export default function Designations() {
             <h2>Designations</h2>
 
             <form onSubmit={createDesignation}>
-                <input value={title} onChange={e => setTitle(e.target.value)} placeholder="new designation title" required />
+                <input
+                    list="designation-options"
+                    value={title}
+                    onChange={e => { setTitle(e.target.value); setTitleError('') }}
+                    placeholder="new designation title"
+                    required
+                />
+                <datalist id="designation-options">
+                    {designations.map(d => <option key={d.id} value={d.title} />)}
+                </datalist>
                 <button type="submit">Create</button>
+                {titleError && <span style={{ color: 'red', marginLeft: 8 }}>{titleError}</span>}
             </form>
 
             <h3>Available designations</h3>

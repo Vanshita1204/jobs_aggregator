@@ -17,34 +17,45 @@ from app.models.userjobpreference import UserJobPreference
 
 
 def create_job_records(jobs, designation: int):
-    """Create job records."""
-    # Prepare jobs for insertion: attach designation_id and ensure required fields
-    to_insert = []
-    for j in jobs:
-        job_data = {
-            "title": j.get("title", ""),
-            "company": j.get("company", ""),
-            "location": j.get("location"),
-            "description": j.get("description", ""),
-            "source": j.get("source", "N/A"),
-            "source_url": j.get("source_url"),
-            "designation_id": designation,
-        }
-        if not job_data["source_url"]:
-            continue
-        to_insert.append(job_data)
+    """Create job records, skipping duplicates by source_url."""
+    to_insert: list[dict] = []
+    seen_urls: set[str] = set()
 
-    # Insert new jobs into DB, skipping duplicates (by source_url)
-    if to_insert:
-        with Session(engine) as session:
-            for jd in to_insert:
-                exists = session.exec(
-                    select(Job).where(Job.source_url == jd["source_url"])
-                ).first()
-                if exists:
-                    continue
-                job_obj = Job(**jd)
-                session.add(job_obj)
+    for j in jobs:
+        url = j.get("source_url")
+        if not url or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        to_insert.append(
+            {
+                "title": j.get("title", ""),
+                "company": j.get("company", ""),
+                "location": j.get("location"),
+                "description": j.get("description", ""),
+                "source": j.get("source", "N/A"),
+                "source_url": url,
+                "designation_id": designation,
+            }
+        )
+
+    if not to_insert:
+        return
+
+    with Session(engine) as session:
+        # Single query to find all already-existing URLs in this batch
+        existing_urls: set[str] = set(
+            session.exec(
+                select(Job.source_url).where(
+                    Job.source_url.in_([jd["source_url"] for jd in to_insert])
+                )
+            ).all()
+        )
+
+        new_jobs = [
+            Job(**jd) for jd in to_insert if jd["source_url"] not in existing_urls
+        ]
+        if new_jobs:
+            session.add_all(new_jobs)
             session.commit()
 
 

@@ -1,7 +1,6 @@
 def parse_linkedin_jobs(soup):
     """Parse LinkedIn job postings from the soup object."""
     jobs = []
-    return
     template = soup.select("body  main > section:nth-of-type(2) > ul > li")
     for job in template:
         data = job.select("div:nth-of-type(2)")[0]
@@ -27,7 +26,6 @@ def parse_linkedin_jobs(soup):
 def parse_indeed_jobs(soup):
     """Parse Indeed job postings from the soup object."""
     jobs = []
-    breakpoint()
     template = soup.select("td")
     for job in template:
         title = job.select("a")[0].text.strip() if job.select("a")[0] else "N/A"
@@ -60,7 +58,6 @@ def parse_indeed_jobs(soup):
 def parse_hirist_jobs(soup):
     """Parse Hirist job postings from the soup object."""
     jobs = []
-    return
     template = soup.select("div.joblist-card-v2")
     for job in template:
         title = job.select_one('[data-testid="job_title"]')

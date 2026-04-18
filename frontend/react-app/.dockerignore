@@ -1,0 +1,13 @@
+# node_modules can be hundreds of MB and is always rebuilt with `npm ci`
+node_modules/
+
+# Previous build output — rebuilt fresh each time
+dist/
+
+# Git and editor files
+.git/
+.gitignore
+.vscode/
+
+# Docs
+*.md

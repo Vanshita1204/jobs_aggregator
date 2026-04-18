@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     DATABASE_URL: str
     NEW_JOB_THRESHOLD_HOURS: int = 24
+    PLAYWRIGHT_HEADLESS: bool = False  # overridden to True in Docker via docker-compose
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     model_config = SettingsConfigDict(
         env_file=".env",

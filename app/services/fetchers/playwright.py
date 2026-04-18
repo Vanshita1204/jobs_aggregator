@@ -1,5 +1,7 @@
 from playwright.sync_api import sync_playwright
 
+from app.core.config import settings
+
 
 def fetch_page_with_browser(url: str, timeout: int = 30000) -> str:
     """
@@ -8,7 +10,7 @@ def fetch_page_with_browser(url: str, timeout: int = 30000) -> str:
     with sync_playwright() as p:
 
         browser = p.chromium.launch(
-            headless=False,  # important for some anti-bot systems
+            headless=settings.PLAYWRIGHT_HEADLESS,  # False locally, True in Docker
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
