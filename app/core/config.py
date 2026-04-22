@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     NEW_JOB_THRESHOLD_HOURS: int = 24
     PLAYWRIGHT_HEADLESS: bool = False  # overridden to True in Docker via docker-compose
     REDIS_URL: str = "redis://localhost:6379/0"
+    GROQ_API_KEY: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

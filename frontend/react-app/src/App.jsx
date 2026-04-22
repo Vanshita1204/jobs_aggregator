@@ -22,29 +22,45 @@ export default function App() {
         <BrowserRouter>
             <div className="app">
                 <header>
-                    <h1>Jobs Aggregator</h1>
-                    <nav>
-                        <Link to="/">Home</Link>
-                        {!loggedIn && (
-                            <>
-                                | <Link to="/register">Register</Link> |{' '}
-                                <Link to="/login">Login</Link>
-                            </>
-                        )}
-                        {loggedIn && (
-                            <>
-                                {' '}| <Link to="/designations">Add Designation</Link> |{' '}
-                                <Link to="/user-designation">Manage User Designation</Link> |{' '}
-                                <Link to="/jobs">List All Jobs</Link> |{' '}
-                                <Link to="/jobs/applied">List Applied Jobs</Link> |{' '}
-                                <Link to="/jobs/interviewed">List Interviewed Jobs</Link> |{' '}
-                                <Link to="/jobs/rejected">List Rejected Jobs</Link> |{' '}
-                                <Link to="/jobs/irrelevant">List Irrelevant Jobs</Link> |{' '}
-                                <Link to="/jobs/saved">List Saved Jobs</Link>
-                                | <button onClick={() => { localStorage.removeItem('access_token'); setLoggedIn(false); window.dispatchEvent(new Event('authchange')) }}>Logout</button>
-                            </>
-                        )}
-                    </nav>
+                    <div className="header-inner">
+                        <Link to="/" className="header-logo">Jobs Aggregator</Link>
+                        <nav>
+                            {!loggedIn && (
+                                <div className="nav-group">
+                                    <Link to="/register">Register</Link>
+                                    <Link to="/login">Login</Link>
+                                </div>
+                            )}
+                            {loggedIn && (
+                                <>
+                                    <div className="nav-group">
+                                        <Link to="/designations">Add Designation</Link>
+                                        <Link to="/user-designation">My Designations</Link>
+                                    </div>
+                                    <div className="nav-divider" />
+                                    <div className="nav-group">
+                                        <Link to="/jobs">All</Link>
+                                        <Link to="/jobs/saved">Saved</Link>
+                                        <Link to="/jobs/applied">Applied</Link>
+                                        <Link to="/jobs/interviewed">Interviewed</Link>
+                                        <Link to="/jobs/rejected">Rejected</Link>
+                                        <Link to="/jobs/irrelevant">Irrelevant</Link>
+                                    </div>
+                                    <div className="nav-divider" />
+                                    <button
+                                        className="nav-logout"
+                                        onClick={() => {
+                                            localStorage.removeItem('access_token')
+                                            setLoggedIn(false)
+                                            window.dispatchEvent(new Event('authchange'))
+                                        }}
+                                    >
+                                        Logout
+                                    </button>
+                                </>
+                            )}
+                        </nav>
+                    </div>
                 </header>
                 <main>
                     <Routes>
@@ -63,5 +79,10 @@ export default function App() {
 }
 
 function Home() {
-    return <p>Use the nav to register/login and call protected endpoints.</p>
+    return (
+        <div className="home-placeholder">
+            <h2>Welcome to Jobs Aggregator</h2>
+            <p>Login to browse and track job listings from LinkedIn and Hirist.</p>
+        </div>
+    )
 }

@@ -21,7 +21,7 @@ export default function Jobs() {
 
     const [jobs, setJobs] = useState([])
     const [loading, setLoading] = useState(false)
-    const [result, setResult] = useState(null)
+    const [error, setError] = useState('')
     const [filterJob, setFilterJob] = useState(null)
     const [showFilterModal, setShowFilterModal] = useState(false)
     const [filterStep, setFilterStep] = useState('choice') // 'choice' | 'keyword'
@@ -34,7 +34,7 @@ export default function Jobs() {
 
     async function fetchJobs() {
         setLoading(true)
-        setResult(null)
+        setError('')
 
         let url = '/jobs'
         if (status) url += `?status=${status}`
@@ -42,25 +42,25 @@ export default function Jobs() {
         const res = await request(url, { method: 'GET' })
 
         if (res.ok && res.data) setJobs(res.data)
-        else setResult(res)
+        else setError(res.data?.detail || 'Failed to load jobs.')
 
         setLoading(false)
     }
     async function fetchNewJobs() {
         setLoading(true)
-        setResult(null)
-    
+        setError('')
+
         const res = await request('/jobs/fetch-new', { method: 'POST' })
-    
+
         if (!res.ok) {
-            setResult(res)
+            setError(res.data?.detail || 'Failed to trigger job fetch.')
             setLoading(false)
             return
         }
-    
+
         // Give scraper some time to insert jobs
         setTimeout(fetchJobs, 3000)
-    
+
         setLoading(false)
     }
 
@@ -82,7 +82,7 @@ export default function Jobs() {
                 )
             )
         } else {
-            setResult(res)
+            setError(res.data?.detail || 'Failed to update job status.')
         }
     }
     async function handleIrrelevant(job) {
@@ -97,7 +97,7 @@ export default function Jobs() {
         })
 
         if (!res.ok) {
-            setResult(res)
+            setError(res.data?.detail || 'Failed to mark job as irrelevant.')
             return
         }
 
@@ -137,7 +137,7 @@ export default function Jobs() {
         })
 
         if (!res.ok) {
-            setResult(res)
+            setError(res.data?.detail || 'Failed to save filter.')
         }
 
         setSavingFilter(false)
@@ -148,9 +148,7 @@ export default function Jobs() {
         if (!filterJob) return
 
         const trimmed = keywordsInput.trim()
-        if (!trimmed) {
-            return
-        }
+        if (!trimmed) return
 
         setSavingFilter(true)
 
@@ -163,8 +161,7 @@ export default function Jobs() {
             })
 
             if (!res.ok) {
-                setResult(res)
-                // stop on first error
+                setError(res.data?.detail || 'Failed to save filter.')
                 break
             }
         }
@@ -234,10 +231,10 @@ export default function Jobs() {
             </div>
         </div>
 
-            {loading && <p>Loading jobs…</p>}
+            {loading && <p className="state-msg">Loading jobs…</p>}
 
             {!loading && jobs.length === 0 && (
-                <p>No jobs found.</p>
+                <p className="state-msg">No jobs found.</p>
             )}
 
             <ul className="jobs-list">
@@ -387,11 +384,7 @@ export default function Jobs() {
                 </div>
             )}
 
-            {result && (
-                <pre className="result">
-                    {JSON.stringify(result, null, 2)}
-                </pre>
-            )}
+            {error && <p className="msg-error">{error}</p>}
 
         </section>
     )

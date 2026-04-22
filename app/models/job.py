@@ -54,3 +54,4 @@ class JobRead(SQLModel):
     designation_id: int
     created_at: datetime
     updated_at: datetime
+    is_new: bool = False

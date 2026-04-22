@@ -3,10 +3,10 @@ import { request } from '../api'
 
 export default function Designations() {
     const [designations, setDesignations] = useState([])
+    const [userDesignationIds, setUserDesignationIds] = useState(new Set())
     const [title, setTitle] = useState('')
-    const [result, setResult] = useState(null)
-    const [user, setUser] = useState(null)
-    const [addedIds, setAddedIds] = useState(new Set())
+    const [error, setError] = useState('')
+    const [success, setSuccess] = useState('')
     const [titleError, setTitleError] = useState('')
 
     useEffect(() => {
@@ -14,20 +14,23 @@ export default function Designations() {
     }, [])
 
     async function fetchData() {
-        // backend exposes GET /designation/list which returns list[DesignationRead]
-        const res = await request('/designation', { method: 'GET', auth: false })
-        if (res.ok && res.data) setDesignations(res.data)
-        else setDesignations([])
-    }
+        const [allRes, userRes] = await Promise.all([
+            request('/designation', { method: 'GET', auth: false }),
+            request('/user-designation', { method: 'GET' }),
+        ])
 
-    async function fetchCurrentUser() {
-        const res = await request('/auth/users/me', { method: 'GET' })
-        if (res.ok && res.data) setUser(res.data)
+        if (allRes.ok && allRes.data) setDesignations(allRes.data)
+        else setDesignations([])
+
+        if (userRes.ok && userRes.data) {
+            setUserDesignationIds(new Set(userRes.data.map(ud => ud.designation_id)))
+        }
     }
 
     async function createDesignation(e) {
         e.preventDefault()
-        setResult(null)
+        setError('')
+        setSuccess('')
         setTitleError('')
 
         const duplicate = designations.find(
@@ -39,29 +42,34 @@ export default function Designations() {
         }
 
         const res = await request('/designation', { method: 'POST', body: { title }, auth: true })
-        setResult(res)
         if (res.ok && res.data && res.data.id) {
-            // automatically add designation to current user
-            if (user && user.id) {
-                await addDesignationToUser(res.data.id)
-            }
+            await addDesignationToUser(res.data.id)
             await fetchData()
             setTitle('')
+            setSuccess(`"${res.data.title}" created and added to your designations.`)
+        } else {
+            setError(res.data?.detail || 'Failed to create designation.')
         }
     }
 
     async function addDesignationToUser(designationId) {
         const res = await request('/user-designation', { method: 'POST', body: { designation_id: designationId } })
         if (res.ok) {
-            setAddedIds(prev => new Set(prev).add(designationId))
+            setUserDesignationIds(prev => new Set(prev).add(designationId))
         }
         return res
     }
 
     async function handleAddClick(designationId) {
+        setError('')
+        setSuccess('')
         const res = await addDesignationToUser(designationId)
-        setResult(res)
+        if (!res.ok) {
+            setError(res.data?.detail || 'Failed to add designation.')
+        }
     }
+
+    const availableDesignations = designations.filter(d => !userDesignationIds.has(d.id))
 
     return (
         <section>
@@ -84,17 +92,18 @@ export default function Designations() {
 
             <h3>Available designations</h3>
             <ul>
-                {designations.map(d => (
+                {availableDesignations.map(d => (
                     <li key={d.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                         <span>{d.title}</span>
-                        <button onClick={() => handleAddClick(d.id)} disabled={addedIds.has(d.id)} style={{ marginLeft: 8 }}>
-                            {addedIds.has(d.id) ? 'Added' : 'Add'}
+                        <button onClick={() => handleAddClick(d.id)} style={{ marginLeft: 8 }}>
+                            Add
                         </button>
                     </li>
                 ))}
             </ul>
 
-            <pre className="result">{result && JSON.stringify(result, null, 2)}</pre>
+            {error && <p className="msg-error">{error}</p>}
+            {success && <p className="msg-success">{success}</p>}
         </section>
     )
 }

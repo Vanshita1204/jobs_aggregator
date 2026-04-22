@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { request } from '../api'
 
 export default function UserDesignation() {
-    const [designationId, setDesignationId] = useState('')
-    const [result, setResult] = useState(null)
+    const [error, setError] = useState('')
     const [designations, setDesignations] = useState([])
     const [userDesignations, setUserDesignations] = useState([])
 
@@ -26,10 +25,13 @@ export default function UserDesignation() {
 
 
     async function deleteById(userDesignationId) {
-        // backend expects user_designation_id as a query parameter, not in the JSON body
+        setError('')
         const res = await request(`/user-designation?user_designation_id=${userDesignationId}`, { method: 'DELETE' })
-        setResult(res)
-        if (res.ok) setUserDesignations(prev => prev.filter(u => u.id !== userDesignationId))
+        if (res.ok) {
+            setUserDesignations(prev => prev.filter(u => u.id !== userDesignationId))
+        } else {
+            setError(res.data?.detail || 'Failed to remove designation.')
+        }
     }
 
     return (
@@ -47,7 +49,7 @@ export default function UserDesignation() {
                 })}
             </ul>
 
-            <pre className="result">{result && JSON.stringify(result, null, 2)}</pre>
+            {error && <p className="msg-error">{error}</p>}
         </section>
     )
 }

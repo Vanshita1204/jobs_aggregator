@@ -40,7 +40,10 @@ def job_fetching_task(self):
 def job_fetching_task_designation(self, designation_id):
     """Background task to fetch jobs for all designations."""
     with Session(engine) as session:
-        desig = Designation(id=designation_id)
+        desig = session.get(Designation, designation_id)
+        if not desig:
+            print(f"Designation {designation_id} not found")
+            return
 
         try:
             jobs = fetch_jobs_for_designation(designation=desig)
