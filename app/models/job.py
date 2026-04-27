@@ -55,3 +55,5 @@ class JobRead(SQLModel):
     created_at: datetime
     updated_at: datetime
     is_new: bool = False
+    user_job_id: Optional[int] = None
+    user_status: Optional[str] = None

@@ -28,7 +28,10 @@ def parse_indeed_jobs(soup):
     jobs = []
     template = soup.select("td")
     for job in template:
-        title = job.select("a")[0].text.strip() if job.select("a")[0] else "N/A"
+        anchors = job.select("a")
+        if not anchors or not anchors[0].get("href"):
+            continue
+        title = anchors[0].text.strip() or "N/A"
         company = (
             job.select_one('[data-testid="company-name"]').text.strip()
             if job.select_one('[data-testid="company-name"]')
@@ -39,7 +42,7 @@ def parse_indeed_jobs(soup):
             if job.select_one('[data-testid="text-location"]')
             else "N/A"
         )
-        source_url = "https://www.indeed.com" + job.select_one("a")["href"]
+        source_url = "https://in.indeed.com" + anchors[0]["href"]
         print(
             f"Title: {title}, Company: {company}, Location: {location}, Source: Indeed"
         )

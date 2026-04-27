@@ -1,6 +1,6 @@
 const API_BASE = 'http://localhost:8000/api/v1'
 
-async function request(path, { method = 'GET', body = null, auth = true } = {}) {
+async function request(path, { method = 'GET', body = null, auth = true, extraHeaders = {} } = {}) {
     const headers = {}
     let payload = null
     // Support JSON bodies, FormData and URLSearchParams (for form-encoded login)
@@ -15,6 +15,7 @@ async function request(path, { method = 'GET', body = null, auth = true } = {}) 
         const token = localStorage.getItem('access_token')
         if (token) headers['Authorization'] = 'Bearer ' + token
     }
+    Object.assign(headers, extraHeaders)
 
     const res = await fetch(API_BASE + path, { method, headers, body: payload })
     const text = await res.text()

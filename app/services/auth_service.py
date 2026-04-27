@@ -5,11 +5,13 @@ Auth service.
 from sqlmodel import Session, select
 
 from app.core.auth import create_access_token, hash_password, verify_password
+from app.models.designation import Designation
 from app.models.user import User
+from app.models.userdesignation import UserDesignation
 
 
 def register_user(session: Session, email: str, password: str, full_name: str):
-    """Register a new user."""
+    """Register a new user and auto-assign all existing designations."""
     user = User(
         email=email,
         full_name=full_name,
@@ -18,6 +20,12 @@ def register_user(session: Session, email: str, password: str, full_name: str):
     session.add(user)
     session.commit()
     session.refresh(user)
+
+    designations = session.exec(select(Designation)).all()
+    for designation in designations:
+        session.add(UserDesignation(user_id=user.id, designation_id=designation.id))
+    session.commit()
+
     return user
 
 

@@ -111,7 +111,7 @@ def fetch_job_records(session: Session, user_id: int, status: JobStatus | None =
         return results
 
     stmt = (
-        select(Job)
+        select(Job, UserJob.id.label("user_job_id"), UserJob.status.label("user_status"))
         .join(
             UserDesignation,
             Job.designation_id == UserDesignation.designation_id,
@@ -128,4 +128,7 @@ def fetch_job_records(session: Session, user_id: int, status: JobStatus | None =
         .order_by(Job.created_at.desc())
     )
 
-    return session.exec(stmt).all()
+    return [
+        {**job.model_dump(), "user_job_id": uj_id, "user_status": uj_status}
+        for job, uj_id, uj_status in session.exec(stmt).all()
+    ]

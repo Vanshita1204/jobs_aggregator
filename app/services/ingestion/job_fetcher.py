@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup
 
 from app.db.session import engine
 from app.services.designation import Designation
+from app.services.fetchers.page_fetcher import fetch_page_cffi
 from app.services.fetchers.playwright import fetch_page_with_browser
 from app.services.parsers import (
     parse_hirist_jobs,
@@ -11,6 +12,16 @@ from app.services.parsers import (
 
 # Central definition of sources (VERY IMPORTANT)
 SOURCES = {
+    "indeed": {
+        "url": (
+            "https://in.indeed.com/jobs"
+            "?q={title}&l=india&fromage=1"
+            "&sc=0kf%3Aattr%28CF3CP%29%3B"
+            "&from=searchOnDesktopSerp"
+        ),
+        "parser": parse_indeed_jobs,
+        "fetcher": fetch_page_cffi,  # curl_cffi bypasses Cloudflare TLS fingerprinting
+    },
     "hirist": {
         "url": (
             "https://www.hirist.tech/search/{slug}"
@@ -29,16 +40,6 @@ SOURCES = {
         "parser": parse_linkedin_jobs,
         "fetcher": fetch_page_with_browser,
     },
-    # "indeed": {
-    #     "url": (
-    #         "https://in.indeed.com/jobs"
-    #         "?q={title}&l=india&fromage=1"
-    #         "&sc=0kf%3Aattr%28CF3CP%29%3B"
-    #         "&from=searchOnDesktopSerp"
-    #     ),
-    #     "parser": parse_indeed_jobs,
-    #     "fetcher": fetch_page_with_browser,
-    # },
 }
 
 

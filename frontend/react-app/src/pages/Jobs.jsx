@@ -1,6 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { request } from '../api'
+
+const CONTENT_TYPES = {
+    pdf: 'application/pdf',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    txt: 'text/plain',
+}
 
 const STATUS_LABELS = {
     applied: 'Applied',
@@ -28,9 +34,34 @@ export default function Jobs() {
     const [keywordsInput, setKeywordsInput] = useState('')
     const [savingFilter, setSavingFilter] = useState(false)
 
+    // CV Tips state
+    const [cvs, setCvs] = useState([])
+    const [tipsJob, setTipsJob] = useState(null)
+    const [selectedCvId, setSelectedCvId] = useState('')
+    const [tips, setTips] = useState('')
+    const [tipsLoading, setTipsLoading] = useState(false)
+    const [tipsError, setTipsError] = useState('')
+    const [jobDescription, setJobDescription] = useState('')
+    const [descLoading, setDescLoading] = useState(false)
+
+    // Attach CV state
+    const [attachCvJob, setAttachCvJob] = useState(null)
+    const [attachCvName, setAttachCvName] = useState('')
+    const [attachCvFile, setAttachCvFile] = useState(null)
+    const [attachCvUploading, setAttachCvUploading] = useState(false)
+    const [attachCvError, setAttachCvError] = useState('')
+    const [attachCvSuccess, setAttachCvSuccess] = useState('')
+    const attachCvFileRef = useRef()
+
     useEffect(() => {
         fetchJobs()
+        fetchCVs()
     }, [status])
+
+    async function fetchCVs() {
+        const res = await request('/cvs', { method: 'GET' })
+        if (res.ok && res.data) setCvs(res.data)
+    }
 
     async function fetchJobs() {
         setLoading(true)
@@ -77,7 +108,7 @@ export default function Jobs() {
             setJobs(prev =>
                 prev.map(job =>
                     job.id === jobId
-                        ? { ...job, user_status: newStatus }
+                        ? { ...job, user_status: newStatus, user_job_id: res.data.id }
                         : job
                 )
             )
@@ -170,6 +201,120 @@ export default function Jobs() {
         closeFilterModal()
     }
 
+    function openAttachCvModal(job) {
+        setAttachCvJob(job)
+        setAttachCvName('')
+        setAttachCvFile(null)
+        setAttachCvError('')
+        setAttachCvSuccess('')
+    }
+
+    function closeAttachCvModal() {
+        setAttachCvJob(null)
+        setAttachCvName('')
+        setAttachCvFile(null)
+        setAttachCvError('')
+        setAttachCvSuccess('')
+        setAttachCvUploading(false)
+        if (attachCvFileRef.current) attachCvFileRef.current.value = ''
+    }
+
+    async function handleAttachCv(e) {
+        e.preventDefault()
+        if (!attachCvFile || !attachCvJob) return
+        setAttachCvUploading(true)
+        setAttachCvError('')
+        setAttachCvSuccess('')
+
+        const ext = attachCvFile.name.split('.').pop().toLowerCase()
+        const contentType = CONTENT_TYPES[ext] || 'application/octet-stream'
+
+        const urlRes = await request(
+            `/cvs/upload-url?filename=${encodeURIComponent(attachCvFile.name)}&content_type=${encodeURIComponent(contentType)}`,
+            { method: 'GET' }
+        )
+        if (!urlRes.ok) {
+            setAttachCvError(urlRes.data?.detail || 'Failed to get upload URL.')
+            setAttachCvUploading(false)
+            return
+        }
+        const { upload_url, gcs_path } = urlRes.data
+
+        try {
+            const gcsRes = await fetch(upload_url, {
+                method: 'PUT',
+                headers: { 'Content-Type': contentType },
+                body: attachCvFile,
+            })
+            if (!gcsRes.ok) throw new Error(`GCS upload failed: ${gcsRes.status}`)
+        } catch (err) {
+            setAttachCvError(`Upload to storage failed: ${err.message}`)
+            setAttachCvUploading(false)
+            return
+        }
+
+        const res = await request('/cvs', {
+            method: 'POST',
+            body: { name: attachCvName, gcs_path, user_job_id: attachCvJob.user_job_id },
+        })
+        if (res.ok) {
+            setAttachCvSuccess('CV attached successfully.')
+            await fetchCVs()
+            setTimeout(closeAttachCvModal, 1500)
+        } else {
+            setAttachCvError(res.data?.detail || 'Failed to attach CV.')
+        }
+        setAttachCvUploading(false)
+    }
+
+    async function openTipsModal(job) {
+        setTipsJob(job)
+        setSelectedCvId(cvs.length > 0 ? String(cvs[0].id) : '')
+        setTips('')
+        setTipsError('')
+        setJobDescription('')
+        setDescLoading(true)
+        const res = await request(`/jobs/${job.id}/description`, { method: 'GET' })
+        if (res.ok) setJobDescription(res.data?.description || '')
+        setDescLoading(false)
+    }
+
+    function closeTipsModal() {
+        setTipsJob(null)
+        setTips('')
+        setTipsError('')
+        setTipsLoading(false)
+        setJobDescription('')
+        setDescLoading(false)
+    }
+
+    async function handleGetTips() {
+        if (!selectedCvId) return
+        setTipsLoading(true)
+        setTipsError('')
+        setTips('')
+
+        const provider = localStorage.getItem('llm_provider') || 'groq'
+        const llmKey = localStorage.getItem('llm_key') || ''
+
+        const res = await request(`/cvs/${selectedCvId}/tips/${tipsJob.id}`, {
+            method: 'POST',
+            body: null,
+            auth: true,
+            extraHeaders: {
+                'x-llm-provider': provider,
+                'x-llm-key': llmKey,
+            },
+        })
+
+        if (res.ok && res.data?.tips) {
+            setTips(res.data.tips)
+        } else {
+            setTipsError(res.data?.detail || 'Failed to get CV tips.')
+        }
+        setTipsLoading(false)
+    }
+
     function renderActions(job) {
         return (
             <div className="job-actions">
@@ -202,6 +347,24 @@ export default function Jobs() {
                         onClick={() => handleIrrelevant(job)}
                     >
                         Irrelevant
+                    </button>
+                )}
+
+                {cvs.length > 0 && (
+                    <button
+                        className="btn-tips"
+                        onClick={() => openTipsModal(job)}
+                    >
+                        CV Tips
+                    </button>
+                )}
+
+                {job.user_job_id && (
+                    <button
+                        className="btn-secondary"
+                        onClick={() => openAttachCvModal(job)}
+                    >
+                        Attach CV
                     </button>
                 )}
             </div>
@@ -385,6 +548,116 @@ export default function Jobs() {
             )}
 
             {error && <p className="msg-error">{error}</p>}
+
+            {/* CV Tips modal */}
+            {tipsJob && (
+                <div className="modal-backdrop">
+                    <div className="modal" style={{ maxWidth: 600, maxHeight: '85vh', overflowY: 'auto' }}>
+                        <h3>CV Tips for {tipsJob.title}</h3>
+                        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>{tipsJob.company}</p>
+
+                        {/* Job description */}
+                        <div style={{ marginBottom: 16 }}>
+                            <label style={{ fontSize: 13, fontWeight: 600 }}>Job Description</label>
+                            {descLoading
+                                ? <p style={{ fontSize: 13, color: 'var(--muted)' }}>Fetching description…</p>
+                                : jobDescription
+                                    ? (
+                                        <div style={{
+                                            marginTop: 6,
+                                            padding: '10px 12px',
+                                            background: 'var(--surface, #f5f5f5)',
+                                            borderRadius: 6,
+                                            fontSize: 13,
+                                            whiteSpace: 'pre-wrap',
+                                            maxHeight: 200,
+                                            overflowY: 'auto',
+                                        }}>
+                                            {jobDescription}
+                                        </div>
+                                    )
+                                    : <p style={{ fontSize: 13, color: 'var(--muted)' }}>No description available for this source.</p>
+                            }
+                        </div>
+
+                        {!tips && (
+                            <>
+                                <label style={{ fontSize: 13, fontWeight: 600 }}>Select CV</label>
+                                <select
+                                    value={selectedCvId}
+                                    onChange={e => setSelectedCvId(e.target.value)}
+                                    style={{ marginTop: 6 }}
+                                >
+                                    {cvs.map(cv => (
+                                        <option key={cv.id} value={cv.id}>{cv.name}</option>
+                                    ))}
+                                </select>
+                                {tipsError && <p className="msg-error">{tipsError}</p>}
+                                <div className="modal-actions" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                                    <button onClick={handleGetTips} disabled={tipsLoading || !selectedCvId}>
+                                        {tipsLoading ? 'Generating…' : 'Get Tips'}
+                                    </button>
+                                    <button className="btn-secondary" onClick={closeTipsModal}>Cancel</button>
+                                </div>
+                            </>
+                        )}
+
+                        {tips && (
+                            <>
+                                <label style={{ fontSize: 13, fontWeight: 600 }}>Tips</label>
+                                <div className="tips-content" style={{ marginTop: 6 }}>
+                                    {tips.split('\n').filter(Boolean).map((line, i) => (
+                                        <p key={i} style={{ margin: '6px 0', fontSize: 14 }}>{line}</p>
+                                    ))}
+                                </div>
+                                <div className="modal-actions" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                                    <button className="btn-secondary" onClick={() => setTips('')}>Try another CV</button>
+                                    <button className="btn-secondary" onClick={closeTipsModal}>Close</button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Attach CV modal */}
+            {attachCvJob && (
+                <div className="modal-backdrop">
+                    <div className="modal" style={{ maxWidth: 480 }}>
+                        <h3>Attach CV to {attachCvJob.title}</h3>
+                        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 12 }}>{attachCvJob.company}</p>
+                        {attachCvSuccess
+                            ? <p className="msg-success">{attachCvSuccess}</p>
+                            : (
+                                <form onSubmit={handleAttachCv}>
+                                    <input
+                                        value={attachCvName}
+                                        onChange={e => setAttachCvName(e.target.value)}
+                                        placeholder="CV name (e.g. Amazon Backend Application)"
+                                        required
+                                    />
+                                    <input
+                                        ref={attachCvFileRef}
+                                        type="file"
+                                        accept=".pdf,.docx,.txt"
+                                        onChange={e => setAttachCvFile(e.target.files[0])}
+                                        required
+                                    />
+                                    {attachCvError && <p className="msg-error">{attachCvError}</p>}
+                                    <div className="modal-actions" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                                        <button type="submit" disabled={attachCvUploading}>
+                                            {attachCvUploading ? 'Uploading…' : 'Upload & Attach'}
+                                        </button>
+                                        <button type="button" className="btn-secondary" onClick={closeAttachCvModal}>
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </form>
+                            )
+                        }
+                    </div>
+                </div>
+            )}
 
         </section>
     )

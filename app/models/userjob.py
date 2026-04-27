@@ -45,6 +45,7 @@ class UserJobResponse(BaseModel):
     UserJobResponse model is used to return a user job.
     """
 
+    id: int
     job_id: int
     status: JobStatus
 

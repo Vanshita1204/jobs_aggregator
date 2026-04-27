@@ -48,10 +48,10 @@ services:
       PLAYWRIGHT_HEADLESS: "true"   # Containers have no display server; must run headless
       DATABASE_URL: "sqlite:////app/data/jobs.db"  # Absolute path inside container
       REDIS_URL: "redis://redis:6379/0"  # "redis" = service name on the Docker network
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/gcp-key.json"
     volumes:
-      # Named volume mounted at /app/data — SQLite DB lives here.
-      # Data survives container restarts and rebuilds.
       - db_data:/app/data
+      - ./job-aggregator-494212-4eef0bed8eb8.json:/run/secrets/gcp-key.json:ro
     depends_on:
       redis:
         condition: service_healthy  # Wait until Redis passes its healthcheck
@@ -71,8 +71,10 @@ services:
       PLAYWRIGHT_HEADLESS: "true"
       DATABASE_URL: "sqlite:////app/data/jobs.db"
       REDIS_URL: "redis://redis:6379/0"
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/gcp-key.json"
     volumes:
-      - db_data:/app/data   # Shares the same volume as backend so both see the same DB
+      - db_data:/app/data
+      - ./job-aggregator-494212-4eef0bed8eb8.json:/run/secrets/gcp-key.json:ro
     depends_on:
       redis:
         condition: service_healthy
@@ -93,8 +95,10 @@ services:
     environment:
       DATABASE_URL: "sqlite:////app/data/jobs.db"
       REDIS_URL: "redis://redis:6379/0"
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/gcp-key.json"
     volumes:
       - db_data:/app/data
+      - ./job-aggregator-494212-4eef0bed8eb8.json:/run/secrets/gcp-key.json:ro
     depends_on:
       redis:
         condition: service_healthy

@@ -3,11 +3,13 @@ import { request } from '../api'
 
 export default function Designations() {
     const [designations, setDesignations] = useState([])
-    const [userDesignationIds, setUserDesignationIds] = useState(new Set())
+    const [userDesignations, setUserDesignations] = useState([])
     const [title, setTitle] = useState('')
     const [error, setError] = useState('')
     const [success, setSuccess] = useState('')
     const [titleError, setTitleError] = useState('')
+
+    const userDesignationIds = new Set(userDesignations.map(ud => ud.designation_id))
 
     useEffect(() => {
         fetchData()
@@ -22,9 +24,8 @@ export default function Designations() {
         if (allRes.ok && allRes.data) setDesignations(allRes.data)
         else setDesignations([])
 
-        if (userRes.ok && userRes.data) {
-            setUserDesignationIds(new Set(userRes.data.map(ud => ud.designation_id)))
-        }
+        if (userRes.ok && userRes.data) setUserDesignations(userRes.data)
+        else setUserDesignations([])
     }
 
     async function createDesignation(e) {
@@ -54,10 +55,15 @@ export default function Designations() {
 
     async function addDesignationToUser(designationId) {
         const res = await request('/user-designation', { method: 'POST', body: { designation_id: designationId } })
-        if (res.ok) {
-            setUserDesignationIds(prev => new Set(prev).add(designationId))
-        }
+        if (res.ok) await fetchData()
         return res
+    }
+
+    async function removeDesignation(userDesignationId) {
+        setError('')
+        const res = await request(`/user-designation?user_designation_id=${userDesignationId}`, { method: 'DELETE' })
+        if (res.ok) setUserDesignations(prev => prev.filter(ud => ud.id !== userDesignationId))
+        else setError(res.data?.detail || 'Failed to remove designation.')
     }
 
     async function handleAddClick(designationId) {
@@ -90,17 +96,38 @@ export default function Designations() {
                 {titleError && <span style={{ color: 'red', marginLeft: 8 }}>{titleError}</span>}
             </form>
 
+            <h3>Your designations</h3>
+            {userDesignations.length === 0
+                ? <p className="state-msg" style={{ padding: '12px 0' }}>None added yet.</p>
+                : (
+                    <ul>
+                        {userDesignations.map(ud => {
+                            const d = designations.find(x => x.id === ud.designation_id)
+                            return (
+                                <li key={ud.id}>
+                                    <span>{d ? d.title : `#${ud.designation_id}`}</span>
+                                    <button className="btn-danger" onClick={() => removeDesignation(ud.id)}>Remove</button>
+                                </li>
+                            )
+                        })}
+                    </ul>
+                )
+            }
+
             <h3>Available designations</h3>
-            <ul>
-                {availableDesignations.map(d => (
-                    <li key={d.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span>{d.title}</span>
-                        <button onClick={() => handleAddClick(d.id)} style={{ marginLeft: 8 }}>
-                            Add
-                        </button>
-                    </li>
-                ))}
-            </ul>
+            {availableDesignations.length === 0
+                ? <p className="state-msg" style={{ padding: '12px 0' }}>All designations already added.</p>
+                : (
+                    <ul>
+                        {availableDesignations.map(d => (
+                            <li key={d.id}>
+                                <span>{d.title}</span>
+                                <button className="btn-secondary" onClick={() => handleAddClick(d.id)}>Add</button>
+                            </li>
+                        ))}
+                    </ul>
+                )
+            }
 
             {error && <p className="msg-error">{error}</p>}
             {success && <p className="msg-success">{success}</p>}

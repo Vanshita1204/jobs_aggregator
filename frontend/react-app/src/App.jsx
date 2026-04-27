@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, NavLink } from 'react-router-dom'
 import Register from './pages/Register'
 import Login from './pages/Login'
 import Designations from './pages/Designations'
 import UserDesignation from './pages/UserDesignation'
 import Jobs from './pages/Jobs'
+import CVManager from './pages/CVManager'
+import Settings from './pages/Settings'
 
 
 export default function App() {
@@ -27,24 +29,25 @@ export default function App() {
                         <nav>
                             {!loggedIn && (
                                 <div className="nav-group">
-                                    <Link to="/register">Register</Link>
-                                    <Link to="/login">Login</Link>
+                                    <NavLink to="/register">Register</NavLink>
+                                    <NavLink to="/login">Login</NavLink>
                                 </div>
                             )}
                             {loggedIn && (
                                 <>
                                     <div className="nav-group">
-                                        <Link to="/designations">Add Designation</Link>
-                                        <Link to="/user-designation">My Designations</Link>
+                                        <NavLink to="/jobs" end>All Jobs</NavLink>
+                                        <NavLink to="/jobs/saved">Saved</NavLink>
+                                        <NavLink to="/jobs/applied">Applied</NavLink>
+                                        <NavLink to="/jobs/interviewed">Interviewed</NavLink>
+                                        <NavLink to="/jobs/rejected">Rejected</NavLink>
+                                        <NavLink to="/jobs/irrelevant">Irrelevant</NavLink>
                                     </div>
                                     <div className="nav-divider" />
                                     <div className="nav-group">
-                                        <Link to="/jobs">All</Link>
-                                        <Link to="/jobs/saved">Saved</Link>
-                                        <Link to="/jobs/applied">Applied</Link>
-                                        <Link to="/jobs/interviewed">Interviewed</Link>
-                                        <Link to="/jobs/rejected">Rejected</Link>
-                                        <Link to="/jobs/irrelevant">Irrelevant</Link>
+                                        <NavLink to="/designations">Designations</NavLink>
+                                        <NavLink to="/cvs">CVs</NavLink>
+                                        <NavLink to="/settings">Settings</NavLink>
                                     </div>
                                     <div className="nav-divider" />
                                     <button
@@ -71,6 +74,8 @@ export default function App() {
                         <Route path="/user-designation" element={<UserDesignation />} />
                         <Route path="/jobs" element={<Jobs />} />
                         <Route path="/jobs/:status" element={<Jobs />} />
+                        <Route path="/cvs" element={<CVManager />} />
+                        <Route path="/settings" element={<Settings />} />
                     </Routes>
                 </main>
             </div>
