@@ -255,7 +255,21 @@ button:disabled {
 
 .jobs-header-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
+}
+
+.jobs-search {
+    padding: 6px 10px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    font-size: 13px;
+    width: 220px;
+    outline: none;
+}
+
+.jobs-search:focus {
+    border-color: var(--primary, #4f46e5);
 }
 
 .btn-tips {
@@ -396,6 +410,16 @@ button:disabled {
     padding: 2px 7px;
     border-radius: 99px;
     vertical-align: middle;
+}
+
+.job-external-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #7c3aed;
+    flex-shrink: 0;
+    title: "Manually added";
 }
 
 .job-meta {

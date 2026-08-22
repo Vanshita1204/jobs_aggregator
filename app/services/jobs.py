@@ -96,15 +96,20 @@ def fetch_job_records(session: Session, user_id: int, status: JobStatus | None =
         )
 
         if excluded_keywords:
-            normalized_title = func.replace(
-                func.replace(func.lower(Job.title), " ", ""),
-                "-",
-                "",
+            # Replace hyphens with spaces so "front-end" → "front end",
+            # then pad with spaces so whole-word LIKE works:
+            # " intern " won't match " internal " but will match " intern developer "
+            padded_title = func.concat(
+                " ",
+                func.concat(
+                    func.replace(func.lower(Job.title), "-", " "),
+                    " ",
+                ),
             )
 
             for keyword in excluded_keywords:
-                normalized_keyword = keyword.replace(" ", "").replace("-", "").lower()
-                stmt = stmt.where(~normalized_title.like(f"%{normalized_keyword}%"))
+                normalized_keyword = keyword.replace("-", " ").lower().strip()
+                stmt = stmt.where(~padded_title.like(f"% {normalized_keyword} %"))
 
         results = session.exec(stmt).all()
         results = [{**job.model_dump(), "is_new": is_new} for job, is_new in results]

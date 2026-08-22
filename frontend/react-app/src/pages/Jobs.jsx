@@ -26,6 +26,7 @@ export default function Jobs() {
     const { status } = useParams()
 
     const [jobs, setJobs] = useState([])
+    const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [filterJob, setFilterJob] = useState(null)
@@ -44,6 +45,14 @@ export default function Jobs() {
     const [jobDescription, setJobDescription] = useState('')
     const [descLoading, setDescLoading] = useState(false)
 
+    // Add Job manually state
+    const [showAddJob, setShowAddJob] = useState(false)
+    const [addJobUrl, setAddJobUrl] = useState('')
+    const [addJobDesignationId, setAddJobDesignationId] = useState('')
+    const [addJobLoading, setAddJobLoading] = useState(false)
+    const [addJobError, setAddJobError] = useState('')
+    const [designations, setDesignations] = useState([])
+
     // Attach CV state
     const [attachCvJob, setAttachCvJob] = useState(null)
     const [attachCvName, setAttachCvName] = useState('')
@@ -56,7 +65,13 @@ export default function Jobs() {
     useEffect(() => {
         fetchJobs()
         fetchCVs()
+        fetchDesignations()
     }, [status])
+
+    async function fetchDesignations() {
+        const res = await request('/designation', { method: 'GET', auth: false })
+        if (res.ok && res.data) setDesignations(res.data)
+    }
 
     async function fetchCVs() {
         const res = await request('/cvs', { method: 'GET' })
@@ -201,6 +216,36 @@ export default function Jobs() {
         closeFilterModal()
     }
 
+    async function handleAddJob(e) {
+        e.preventDefault()
+        if (!addJobUrl.trim() || !addJobDesignationId) return
+        setAddJobLoading(true)
+        setAddJobError('')
+
+        const provider = localStorage.getItem('llm_provider') || 'groq'
+        const llmKey = localStorage.getItem('llm_key') || ''
+
+        const res = await request('/jobs/add', {
+            method: 'POST',
+            body: { url: addJobUrl.trim(), designation_id: Number(addJobDesignationId), status: status || null },
+            extraHeaders: {
+                'x-llm-provider': provider,
+                'x-llm-key': llmKey,
+            },
+        })
+
+        setAddJobLoading(false)
+
+        if (res.ok) {
+            setShowAddJob(false)
+            setAddJobUrl('')
+            setAddJobDesignationId('')
+            setJobs(prev => [res.data, ...prev.filter(j => j.id !== res.data.id)])
+        } else {
+            setAddJobError(res.data?.detail || 'Failed to add job.')
+        }
+    }
+
     function openAttachCvModal(job) {
         setAttachCvJob(job)
         setAttachCvName('')
@@ -253,9 +298,25 @@ export default function Jobs() {
             return
         }
 
+        let userJobId = attachCvJob.user_job_id
+        if (!userJobId) {
+            // Uploading a CV counts as applying — create the UserJob now that the file is actually uploaded
+            const ujRes = await request('/user-jobs', {
+                method: 'POST',
+                body: { job_id: attachCvJob.id, status: 'applied' },
+            })
+            if (!ujRes.ok) {
+                setAttachCvError(ujRes.data?.detail || 'Failed to mark job as applied.')
+                setAttachCvUploading(false)
+                return
+            }
+            userJobId = ujRes.data.id
+            setJobs(prev => prev.map(j => j.id === attachCvJob.id ? { ...j, user_status: 'applied', user_job_id: userJobId } : j))
+        }
+
         const res = await request('/cvs', {
             method: 'POST',
-            body: { name: attachCvName, gcs_path, user_job_id: attachCvJob.user_job_id },
+            body: { name: attachCvName, gcs_path, user_job_id: userJobId },
         })
         if (res.ok) {
             setAttachCvSuccess('CV attached successfully.')
@@ -359,14 +420,12 @@ export default function Jobs() {
                     </button>
                 )}
 
-                {job.user_job_id && (
-                    <button
-                        className="btn-secondary"
-                        onClick={() => openAttachCvModal(job)}
-                    >
-                        Attach CV
-                    </button>
-                )}
+                <button
+                    className="btn-secondary"
+                    onClick={() => openAttachCvModal(job)}
+                >
+                    Attach CV
+                </button>
             </div>
         )
     }
@@ -382,11 +441,23 @@ export default function Jobs() {
             </h2>
 
             <div className="jobs-header-actions">
+                <input
+                    type="search"
+                    className="jobs-search"
+                    placeholder="Search by title, company, location…"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                />
+
                 {!status && (
                     <button onClick={fetchNewJobs} className="btn-fetch-new">
                         Fetch New
                     </button>
                 )}
+
+                <button onClick={() => { setShowAddJob(true); setAddJobError('') }} className="btn-secondary">
+                    + Add Job
+                </button>
 
                 <button onClick={fetchJobs} className="btn-refresh">
                     Refresh
@@ -402,7 +473,15 @@ export default function Jobs() {
 
             <ul className="jobs-list">
 
-                {jobs.map(job => (
+                {jobs.filter(job => {
+                    if (!search.trim()) return true
+                    const q = search.toLowerCase()
+                    return (
+                        job.title?.toLowerCase().includes(q) ||
+                        job.company?.toLowerCase().includes(q) ||
+                        job.location?.toLowerCase().includes(q)
+                    )
+                }).map(job => (
                     <li key={job.id} className="job-card">
 
                         <a
@@ -413,6 +492,12 @@ export default function Jobs() {
                         >
 
                         <div className="job-title">
+                            {job.is_external && (
+                                <span
+                                    className="job-external-dot"
+                                    title="Manually added"
+                                />
+                            )}
                             {job.title}
 
                             {!status && job.is_new && (
@@ -616,6 +701,63 @@ export default function Jobs() {
                                 </div>
                             </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Add Job modal */}
+            {showAddJob && (
+                <div className="modal-backdrop">
+                    <div className="modal" style={{ maxWidth: 500 }}>
+                        <h3>Add Job Manually</h3>
+                        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 16 }}>
+                            Paste any job listing URL. Indeed, LinkedIn and Hirist are parsed
+                            automatically — other sites use AI extraction.
+                            {status
+                                ? ` The job will be added to your ${STATUS_LABELS[status] || status} list and visible to all users under the selected designation.`
+                                : ' The job will be visible to all users under the selected designation (no status will be set for you).'}
+                        </p>
+                        <form onSubmit={handleAddJob}>
+                            <input
+                                type="url"
+                                value={addJobUrl}
+                                onChange={e => setAddJobUrl(e.target.value)}
+                                placeholder="https://..."
+                                required
+                                disabled={addJobLoading}
+                            />
+                            <select
+                                value={addJobDesignationId}
+                                onChange={e => setAddJobDesignationId(e.target.value)}
+                                required
+                                disabled={addJobLoading}
+                                style={{ marginTop: 8 }}
+                            >
+                                <option value="">Select designation…</option>
+                                {designations.map(d => (
+                                    <option key={d.id} value={d.id}>{d.title}</option>
+                                ))}
+                            </select>
+                            {addJobError && <p className="msg-error">{addJobError}</p>}
+                            {addJobLoading && (
+                                <p style={{ color: 'var(--muted)', fontSize: 13 }}>
+                                    Fetching job data… this may take a moment.
+                                </p>
+                            )}
+                            <div className="modal-actions" style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+                                <button type="submit" disabled={addJobLoading}>
+                                    {addJobLoading ? 'Adding…' : 'Add Job'}
+                                </button>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => { setShowAddJob(false); setAddJobError('') }}
+                                    disabled={addJobLoading}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

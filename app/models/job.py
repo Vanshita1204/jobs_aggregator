@@ -21,6 +21,7 @@ class Job(SQLModel, table=True):
     source: str = Field(index=True)
     source_url: str = Field(unique=True)
     designation_id: int = Field(index=True)
+    is_external: bool = Field(default=False)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
@@ -55,5 +56,6 @@ class JobRead(SQLModel):
     created_at: datetime
     updated_at: datetime
     is_new: bool = False
+    is_external: bool = False
     user_job_id: Optional[int] = None
     user_status: Optional[str] = None

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401
@@ -14,6 +15,16 @@ from app.db.session import engine
 async def lifespan(app: FastAPI):
     if settings.ENV == "development":
         SQLModel.metadata.create_all(engine)
+        # Add columns introduced after initial schema creation
+        with engine.connect() as conn:
+            for stmt in [
+                "ALTER TABLE job ADD COLUMN is_external INTEGER NOT NULL DEFAULT 0",
+            ]:
+                try:
+                    conn.execute(text(stmt))
+                    conn.commit()
+                except Exception:
+                    pass  # Column already exists
     yield
 
 
