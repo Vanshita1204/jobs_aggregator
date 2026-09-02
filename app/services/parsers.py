@@ -1,5 +1,36 @@
+"""Portal-specific HTML parsers for the daily/on-demand job search pages.
+
+Each function takes a `BeautifulSoup` object of a search-results page (not a
+single job's detail page) and returns a list of dicts with the keys title,
+company, location, source, source_url. These are consumed by
+`app.services.ingestion.job_fetcher.fetch_jobs_for_designation` and then
+deduplicated/persisted by `app.services.jobs.create_job_records`.
+
+The CSS selectors below are tied to each portal's current markup and will
+break silently (returning fewer/no jobs) if the portal changes its DOM.
+"""
+
+
 def parse_linkedin_jobs(soup):
-    """Parse LinkedIn job postings from the soup object."""
+    """Parse LinkedIn's public job-search results page.
+
+    Input: soup (BeautifulSoup) — parsed HTML of a `linkedin.com/jobs/search` results page.
+    Output: list[dict] — one dict per listing: title, company, location,
+        source ("LinkedIn"), source_url.
+
+    Calls: BeautifulSoup's `select()`/`select_one()` only.
+    Called by: `app.services.ingestion.job_fetcher.fetch_jobs_for_designation()`.
+
+    Variables:
+        jobs (list[dict]): accumulator returned at the end.
+        template (list[Tag]): one `<li>` per job card, selected via a
+            fixed CSS path into LinkedIn's results markup.
+        data (Tag): the card's second `<div>`, which holds title/company/location.
+
+    Logic: for each card in `template`, pull the h3/h4/span text as
+        title/company/location (each defaulting to "N/A" if missing) and
+        the first `<a href>` as `source_url`; append the resulting dict.
+    """
     jobs = []
     template = soup.select("body  main > section:nth-of-type(2) > ul > li")
     for job in template:
@@ -24,7 +55,28 @@ def parse_linkedin_jobs(soup):
 
 
 def parse_indeed_jobs(soup):
-    """Parse Indeed job postings from the soup object."""
+    """Parse Indeed's job-search results page.
+
+    Input: soup (BeautifulSoup) — parsed HTML of an `in.indeed.com/jobs` results page.
+    Output: list[dict] — one dict per listing: title, company, location,
+        source ("Indeed"), source_url.
+
+    Calls: BeautifulSoup's `select()`/`select_one()` only.
+    Called by: `app.services.ingestion.job_fetcher.fetch_jobs_for_designation()`.
+
+    Variables:
+        jobs (list[dict]): accumulator returned at the end.
+        template (list[Tag]): every `<td>` on the page — Indeed's results
+            grid puts one job card per table cell.
+        anchors (list[Tag]): `<a>` tags inside the current `<td>`; a `<td>`
+            with none, or whose first anchor has no `href`, is skipped
+            (it's a non-job cell, e.g. a filter/pagination control).
+
+    Logic: for each `<td>` with a usable first `<a>`, take its text as
+        `title`, look up company/location via `data-testid` attributes
+        (each defaulting to "N/A" if absent), and prefix the anchor's
+        `href` with the Indeed origin to form an absolute `source_url`.
+    """
     jobs = []
     template = soup.select("td")
     for job in template:
@@ -59,7 +111,29 @@ def parse_indeed_jobs(soup):
 
 
 def parse_hirist_jobs(soup):
-    """Parse Hirist job postings from the soup object."""
+    """Parse Hirist's job-search results page.
+
+    Input: soup (BeautifulSoup) — parsed HTML of a `hirist.tech/search/...`
+        results page (must be pre-rendered by a browser, since Hirist is a
+        React SPA — see `app.services.fetchers.playwright.fetch_page_with_browser`).
+    Output: list[dict] — one dict per listing: title, company, location,
+        source ("Hirist"), source_url.
+
+    Calls: BeautifulSoup's `select()`/`select_one()`/`get_text()` only.
+    Called by: `app.services.ingestion.job_fetcher.fetch_jobs_for_designation()`.
+
+    Variables:
+        jobs (list[dict]): accumulator returned at the end.
+        template (list[Tag]): one `div.joblist-card-v2` per job card.
+        data (str): the card's combined "Company - Title" text, split below.
+
+    Logic: skip any card missing a title, location, or link element. For
+        the rest, split the title element's text on " - " — Hirist renders
+        company and title as one string with no separate DOM node for
+        either — taking the part before the separator as `company` and
+        after as `title` (falling back to the whole string as `title` if
+        no separator is present).
+    """
     jobs = []
     template = soup.select("div.joblist-card-v2")
     for job in template:

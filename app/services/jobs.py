@@ -17,7 +17,47 @@ from app.models.userjobpreference import UserJobPreference
 
 
 def create_job_records(jobs, designation: int):
-    """Create job records, skipping duplicates by source_url."""
+    """Batch-insert scraped job dicts, deduplicating by source_url.
+
+    Input:
+        jobs (list[dict]): raw listings as returned by the `parse_*_jobs`
+            functions in `app.services.parsers` (keys: title, company,
+            location, description, source, source_url).
+        designation (int): id of the `Designation` these jobs belong to.
+
+    Output:
+        None. Persists new `Job` rows directly to the database; returns
+        early with no side effect if there is nothing new to insert.
+
+    Calls: `app.services.parsers.parse_*_jobs()` supply `jobs` upstream
+        (not called from here); this function itself calls SQLModel's
+        `session.exec()`/`session.add_all()`/`session.commit()`.
+    Called by: `app.services.tasks.job_fetching_task()`,
+        `app.services.tasks.job_fetching_task_designation()`.
+
+    Variables:
+        to_insert (list[dict]): candidate rows after in-memory URL dedup,
+            shaped to match `Job`'s constructor kwargs.
+        seen_urls (set[str]): URLs already added to `to_insert` in this call,
+            used to drop duplicates within the same scrape batch.
+        existing_urls (set[str]): URLs from `to_insert` that already exist
+            in the `job` table, found via one batched `IN` query.
+        new_jobs (list[Job]): `to_insert` rows minus `existing_urls`,
+            instantiated as `Job` ORM objects ready to insert.
+
+    Logic:
+        1. Walk `jobs`, skipping entries with no `source_url` or with a
+           `source_url` already seen earlier in this same call
+           (`seen_urls`) — this is the in-memory dedup pass.
+        2. If nothing survived, return immediately (no DB call at all).
+        3. Open a session and run a single `source_url IN (...)` query to
+           find which of the surviving URLs are already persisted
+           (`existing_urls`) — this is the DB-level dedup pass.
+        4. Build `Job` objects only for URLs not in `existing_urls`, and
+           insert them in one `add_all()` + `commit()` batch. The
+           `job.source_url` UNIQUE constraint is the final backstop if this
+           function is ever invoked concurrently for overlapping URLs.
+    """
     to_insert: list[dict] = []
     seen_urls: set[str] = set()
 
@@ -60,7 +100,56 @@ def create_job_records(jobs, designation: int):
 
 
 def fetch_job_records(session: Session, user_id: int, status: JobStatus | None = None):
-    """Fetch job records."""
+    """Fetch the job feed for a user; backs `GET /jobs`.
+
+    Input:
+        session (Session): active SQLModel DB session.
+        user_id (int): id of the requesting user.
+        status (JobStatus | None): if provided, restricts results to jobs
+            the user has marked with this exact status; if None, returns
+            the "unseen" feed instead.
+
+    Output:
+        list[dict]: each dict is `Job.model_dump()` merged with either
+        `is_new` (unseen mode) or `user_job_id`/`user_status` (status mode).
+
+    Calls: SQLAlchemy Core `select()`/`join()`/`case()`/`func` query
+        builders and `session.exec()`; no other project function is called.
+    Called by: `app.api.v1.job.list_user_jobs()` — the `GET /jobs` route.
+
+    Variables:
+        excluded_keywords (list[str]): keywords the user has flagged
+            `is_excluded=True` in `UserJobPreference`, applied only in
+            unseen mode.
+        threshold_time (datetime): now minus `NEW_JOB_THRESHOLD_HOURS`;
+            jobs created after this are flagged `is_new`.
+        is_new_col: a SQL `CASE` expression evaluating the `is_new` flag
+            per row, added to the unseen-mode `SELECT` list.
+        padded_title: a SQL expression producing the job title lowercased,
+            hyphens replaced with spaces, and padded with a leading/
+            trailing space, so a `LIKE '% keyword %'` match is whole-word.
+        stmt: the SQLAlchemy `Select` being built up conditionally in
+            either branch before being executed.
+
+    Logic (two independent modes, chosen by whether `status` is falsy):
+        Unseen mode (status is None):
+          1. Load the user's excluded keywords.
+          2. Build a query joining `Job` -> `UserDesignation` (only the
+             user's subscribed designations) with an OUTER JOIN to
+             `UserJob` filtered to `UserJob.id IS NULL` — i.e. jobs with no
+             status record yet for this user.
+          3. Attach the `is_new` CASE column based on `threshold_time`.
+          4. For each excluded keyword, AND-in a `NOT LIKE` clause against
+             the normalised, padded title so partial-word false positives
+             (e.g. "internal" matching "intern") are avoided.
+          5. Execute, then merge each `Job`'s dict with its `is_new` flag.
+        Status mode (status is given):
+          1. Build a query joining `Job` -> `UserDesignation` (subscription
+             required here too) -> `UserJob` filtered to this user and this
+             exact `status` — an INNER JOIN, so no UserDesignation record
+             means the job is excluded even if a matching UserJob exists.
+          2. Execute, then merge each `Job`'s dict with `user_job_id`/`user_status`.
+    """
 
     if not status:
         excluded_keywords = session.exec(

@@ -25,7 +25,14 @@ _HEADERS = {
 
 
 def detect_source(url: str) -> str | None:
-    """Return normalised source name if we have a native parser, else None."""
+    """Classify a URL's hostname against the three natively-supported portals.
+
+    Input: url (str). Output: str | None — one of "indeed"/"linkedin"/
+        "hirist", or None if no native parser matches (LLM fallback applies).
+    Calls: none. Called by: `ingest_job_from_url()` (this file).
+    Logic: substring-match the URL's netloc against each portal's domain,
+        first match wins.
+    """
     host = urlparse(url).netloc.lower()
     if "indeed.com" in host:
         return "indeed"
@@ -41,10 +48,23 @@ def ingest_job_from_url(
     provider: str = "groq",
     api_key: str | None = None,
 ) -> dict:
-    """
-    Fetch + parse a single job page.
-    Returns dict: title, company, location, description, source, source_url.
-    Raises ValueError/RuntimeError on failure.
+    """Fetch and parse a single job page, dispatching by portal.
+
+    Input:
+        url (str): the job posting URL pasted by the user.
+        provider (str): LLM provider to use if no native parser matches.
+        api_key (str | None): caller-supplied key for that provider.
+
+    Output: dict — title, company, location, description, source, source_url.
+    Raises: ValueError/RuntimeError propagated from whichever ingest
+        function is dispatched to, on fetch/parse/JSON failure.
+
+    Calls: `detect_source()`, then one of `_ingest_indeed()` /
+        `_ingest_linkedin()` / `_ingest_hirist()` / `_ingest_via_llm()`.
+    Called by: `app.api.v1.job.add_job_manually()` — `POST /jobs/add`.
+
+    Logic: classify the URL via `detect_source()`; route to the matching
+        native parser, or to the LLM-extraction fallback if none match.
     """
     source = detect_source(url)
 
@@ -61,11 +81,47 @@ def ingest_job_from_url(
 # ── Supported source parsers ────────────────────────────────────────────────
 
 def _extract_jk(url: str) -> str | None:
+    """Pull Indeed's `jk` job-id query parameter out of a URL, if present.
+
+    Input: url (str). Output: str | None.
+    Calls: none. Called by: `_ingest_indeed()` (this file),
+        `app.api.v1.job.add_job_manually()` (for pre-insert dedup).
+    """
     m = re.search(r"[?&]jk=([a-zA-Z0-9]+)", url)
     return m.group(1) if m else None
 
 
 def _ingest_indeed(url: str) -> dict:
+    """Fetch and parse a single Indeed job-detail page.
+
+    Input: url (str) — any Indeed job URL containing a `jk` query parameter.
+    Output: dict — title, company, location, description, source ("Indeed"),
+        source_url. Falls through to `_ingest_via_llm()`'s return shape if
+        no title could be found natively.
+
+    Calls: `_extract_jk()`, `fetch_page_cffi()`, BeautifulSoup parsing
+        helpers, `_ingest_via_llm()` (fallback only).
+    Called by: `ingest_job_from_url()` (this file).
+
+    Variables:
+        canonical_url (str): the `viewjob?jk=<id>` form of `url`, so the
+            same posting reached via different query strings still
+            deduplicates by `source_url` in the caller.
+        title_el/company_el/location_el/desc_el: first matching element
+            from an ordered list of CSS selectors, each a fallback chain
+            for when Indeed's markup varies between page variants.
+
+    Logic:
+        1. Normalise to `canonical_url` via the extracted `jk`.
+        2. Fetch the page HTML with `fetch_page_cffi` (TLS-fingerprint
+           bypass — plain `requests` gets a 403 from Indeed).
+        3. Try several CSS selectors per field, in order, keeping the
+           first that matches (defends against Indeed serving slightly
+           different markup across sessions/experiments).
+        4. If no title was found at all, treat this as a native-parse
+           failure and fall back to `_ingest_via_llm()` instead of
+           returning an empty-titled result.
+    """
     jk = _extract_jk(url)
     canonical_url = f"https://in.indeed.com/viewjob?jk={jk}" if jk else url
 
@@ -116,6 +172,22 @@ def _ingest_indeed(url: str) -> dict:
 
 
 def _ingest_linkedin(url: str) -> dict:
+    """Fetch and parse a single LinkedIn job-detail page via a real browser.
+
+    Input: url (str) — a `linkedin.com/jobs/view/...` URL.
+    Output: dict — title, company, location, description, source
+        ("LinkedIn"), source_url. Fields default to "" if LinkedIn's auth
+        wall blocks the expected content (no LLM fallback for this portal).
+
+    Calls: `fetch_page_with_browser()`, BeautifulSoup parsing helpers.
+    Called by: `ingest_job_from_url()` (this file).
+
+    Logic: render the page with Playwright (LinkedIn blocks plain HTTP),
+        then try one or two CSS selectors per field, defaulting to "" if
+        none match — unlike `_ingest_indeed`, there is no LLM fallback
+        here, so an auth-walled page yields an all-empty-field result
+        rather than a second network round trip.
+    """
     html = fetch_page_with_browser(url)
     soup = BeautifulSoup(html, "html.parser")
 
@@ -148,6 +220,20 @@ def _ingest_linkedin(url: str) -> dict:
 
 
 def _ingest_hirist(url: str) -> dict:
+    """Fetch and parse a single Hirist job-detail page via a real browser.
+
+    Input: url (str) — a `hirist.tech/...` job-detail URL.
+    Output: dict — title, company, location, description, source ("Hirist"),
+        source_url.
+
+    Calls: `fetch_page_with_browser()`, BeautifulSoup parsing helpers.
+    Called by: `ingest_job_from_url()` (this file).
+
+    Logic: render the page with Playwright (Hirist is a React SPA — plain
+        HTTP would return an empty shell), then read title/company/
+        location/description each from the first of two candidate
+        selectors, defaulting to "" if neither matches.
+    """
     html = fetch_page_with_browser(url)
     soup = BeautifulSoup(html, "html.parser")
 
@@ -182,6 +268,47 @@ def _ingest_hirist(url: str) -> dict:
 # ── LLM fallback ─────────────────────────────────────────────────────────────
 
 def _ingest_via_llm(url: str, provider: str, api_key: str | None) -> dict:
+    """Fetch a page from an unsupported portal and extract job data via LLM.
+
+    Input:
+        url (str): any job posting URL not matched by `detect_source()`.
+        provider (str): LLM provider to use for extraction.
+        api_key (str | None): caller-supplied API key for the provider.
+
+    Output: dict — title, company, location, description, source (derived
+        from the URL's hostname, e.g. "naukri.com" -> "Naukri"), source_url.
+
+    Raises: ValueError if the LLM response contains no parseable JSON object.
+
+    Calls: `requests.get()` / `fetch_page_cffi()` (fallback), BeautifulSoup
+        text extraction, `app.services.llm.extract_job_data()`, `json.loads()`.
+    Called by: `ingest_job_from_url()` (this file), as the catch-all path
+        for any URL that isn't Indeed/LinkedIn/Hirist.
+
+    Variables:
+        html (str): raw page HTML, from plain `requests` or, on failure, `fetch_page_cffi`.
+        raw_text (str): the page's visible text with script/style/nav/
+            footer/header tags stripped first.
+        page_text (str): `raw_text` with blank lines removed and truncated
+            to 8000 characters, to stay within the LLM's context budget.
+        llm_response (str): the model's raw reply, expected to contain one JSON object.
+        json_match: the first `{...}` substring found in `llm_response` via regex.
+        data (dict): the parsed JSON object from `json_match`.
+        source_name (str): the URL's hostname (stripped of "www.") with
+            the TLD dropped and capitalised, used as the `source` value.
+
+    Logic:
+        1. Fetch the page: try plain `requests.get` first; if that raises,
+           retry with `fetch_page_cffi` (some sites block default `requests`
+           headers/TLS fingerprints but not curl-impersonation).
+        2. Strip non-content tags and collapse the remaining text to
+           `page_text`, capped at 8000 characters.
+        3. Ask the LLM to extract structured fields from `page_text`.
+        4. Regex out the first `{...}` block from the response and
+           `json.loads()` it; raise ValueError if none is found.
+        5. Derive `source_name` from the URL's hostname and return the
+           combined result dict.
+    """
     # Fetch page — try plain HTTP first, then cffi on failure
     try:
         resp = requests.get(url, headers=_HEADERS, timeout=15)

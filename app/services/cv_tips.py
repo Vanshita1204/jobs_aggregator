@@ -1,3 +1,11 @@
+"""Legacy single-provider (Groq-only) CV tip generator.
+
+Not imported anywhere in the current codebase — superseded by the
+multi-provider `app.services.llm.get_cv_tips`, which is what
+`app/api/v1/cv.py` actually calls. Kept only for reference; safe to delete
+once confirmed unnecessary.
+"""
+
 from groq import Groq
 
 from app.core.config import settings
@@ -5,6 +13,15 @@ from app.models.job import Job
 
 
 def get_cv_tips(job: Job, cv_text: str) -> str:
+    """Generate 5 CV tailoring tips for a job using Groq directly.
+
+    Args:
+        job: The Job row to tailor the CV against.
+        cv_text: Plain text extracted from the candidate's CV file.
+
+    Returns:
+        Raw LLM response text containing 5 tips.
+    """
     client = Groq(api_key=settings.GROQ_API_KEY)
 
     prompt = (
@@ -17,7 +34,7 @@ def get_cv_tips(job: Job, cv_text: str) -> str:
     )
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=1024,
         temperature=0.7,
