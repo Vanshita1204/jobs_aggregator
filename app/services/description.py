@@ -3,8 +3,11 @@
 import requests
 from bs4 import BeautifulSoup
 
+from app.core.logging import get_logger
 from app.services.fetchers.page_fetcher import fetch_page_cffi
 from app.services.fetchers.playwright import fetch_page_with_browser
+
+logger = get_logger(__name__)
 
 _HEADERS = {
     "User-Agent": (
@@ -24,8 +27,8 @@ def fetch_job_description(source: str, source_url: str) -> str:
         # Hirist is a React app — needs a real browser to render content.
         try:
             html = fetch_page_with_browser(source_url)
-        except Exception as e:
-            print(f"[description] browser fetch failed for {source_url}: {e}")
+        except Exception:
+            logger.exception("browser fetch failed for %s", source_url)
             return ""
         return _parse_hirist(BeautifulSoup(html, "html.parser"))
 
@@ -33,8 +36,8 @@ def fetch_job_description(source: str, source_url: str) -> str:
         # Indeed blocks plain HTTP with a 403 security check; use curl_cffi.
         try:
             html = fetch_page_cffi(source_url, timeout=_TIMEOUT)
-        except Exception as e:
-            print(f"[description] cffi fetch failed for {source_url}: {e}")
+        except Exception:
+            logger.exception("cffi fetch failed for %s", source_url)
             return ""
         return _parse_indeed(BeautifulSoup(html, "html.parser"))
 
@@ -43,8 +46,8 @@ def fetch_job_description(source: str, source_url: str) -> str:
         try:
             resp = requests.get(source_url, headers=_HEADERS, timeout=_TIMEOUT)
             resp.raise_for_status()
-        except Exception as e:
-            print(f"[description] fetch failed for {source_url}: {e}")
+        except Exception:
+            logger.exception("fetch failed for %s", source_url)
             return ""
         return _parse_linkedin(BeautifulSoup(resp.text, "html.parser"))
 

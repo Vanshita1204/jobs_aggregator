@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 
+from app.core.logging import get_logger
 from app.db.session import engine
 from app.services.designation import Designation
 from app.services.fetchers.page_fetcher import fetch_page_cffi
@@ -9,6 +10,8 @@ from app.services.parsers import (
     parse_indeed_jobs,
     parse_linkedin_jobs,
 )
+
+logger = get_logger(__name__)
 
 # Central definition of sources (VERY IMPORTANT)
 SOURCES = {
@@ -61,9 +64,8 @@ def fetch_jobs_for_designation(
             soup = BeautifulSoup(html, "html.parser")
             jobs = source["parser"](soup)
             all_jobs.extend(jobs)
-        except Exception as err:
-            # Best-effort ingestion: log later if needed
-            print(f"Error fetching/parsing from source: {err}")
+        except Exception:
+            logger.exception("Error fetching/parsing from source")
             continue
 
     return all_jobs

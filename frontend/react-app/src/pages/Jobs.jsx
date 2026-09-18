@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { request } from '../api'
 
 const CONTENT_TYPES = {
@@ -44,6 +46,13 @@ export default function Jobs() {
     const [tipsError, setTipsError] = useState('')
     const [jobDescription, setJobDescription] = useState('')
     const [descLoading, setDescLoading] = useState(false)
+
+    // Ask AI (RAG job search) state
+    const [askQuery, setAskQuery] = useState('')
+    const [askAnswer, setAskAnswer] = useState('')
+    const [askMatches, setAskMatches] = useState([])
+    const [askLoading, setAskLoading] = useState(false)
+    const [askError, setAskError] = useState('')
 
     // Add Job manually state
     const [showAddJob, setShowAddJob] = useState(false)
@@ -110,6 +119,37 @@ export default function Jobs() {
         setLoading(false)
     }
 
+    async function askJobs(e) {
+        e.preventDefault()
+        if (!askQuery.trim()) return
+
+        setAskLoading(true)
+        setAskError('')
+        setAskAnswer('')
+        setAskMatches([])
+
+        const res = await request('/jobs/ask', {
+            method: 'POST',
+            body: { query: askQuery },
+        })
+
+        if (res.ok && res.data) {
+            setAskAnswer(res.data.answer)
+            setAskMatches(res.data.matches)
+        } else {
+            setAskError(res.data?.detail || 'Failed to get an answer.')
+        }
+
+        setAskLoading(false)
+    }
+
+    // Jobs can appear in both the main feed and the Ask results at once —
+    // keep both lists in sync so a status change is reflected wherever the job is shown.
+    function patchJobEverywhere(jobId, patch) {
+        setJobs(prev => prev.map(job => (job.id === jobId ? { ...job, ...patch } : job)))
+        setAskMatches(prev => prev.map(job => (job.id === jobId ? { ...job, ...patch } : job)))
+    }
+
     async function updateJobStatus(jobId, newStatus) {
         const res = await request('/user-jobs', {
             method: 'POST',
@@ -120,13 +160,7 @@ export default function Jobs() {
         })
 
         if (res.ok) {
-            setJobs(prev =>
-                prev.map(job =>
-                    job.id === jobId
-                        ? { ...job, user_status: newStatus, user_job_id: res.data.id }
-                        : job
-                )
-            )
+            patchJobEverywhere(jobId, { user_status: newStatus, user_job_id: res.data.id })
         } else {
             setError(res.data?.detail || 'Failed to update job status.')
         }
@@ -148,11 +182,7 @@ export default function Jobs() {
         }
 
         // optimistic UI update
-        setJobs(prev =>
-            prev.map(j =>
-                j.id === job.id ? { ...j, user_status: 'irrelevant' } : j
-            )
-        )
+        patchJobEverywhere(job.id, { user_status: 'irrelevant' })
 
         // Step 2: open filter modal to choose how to hide similar jobs
         setFilterJob(job)
@@ -311,7 +341,7 @@ export default function Jobs() {
                 return
             }
             userJobId = ujRes.data.id
-            setJobs(prev => prev.map(j => j.id === attachCvJob.id ? { ...j, user_status: 'applied', user_job_id: userJobId } : j))
+            patchJobEverywhere(attachCvJob.id, { user_status: 'applied', user_job_id: userJobId })
         }
 
         const res = await request('/cvs', {
@@ -430,6 +460,63 @@ export default function Jobs() {
         )
     }
 
+    // Shared by the main job feed and the "Ask" (RAG search) results so both
+    // render identical cards with the same status/CV actions.
+    function renderJobCard(job) {
+        return (
+            <li key={job.id} className="job-card">
+
+                <a
+                    href={job.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="job-info"
+                >
+
+                <div className="job-title">
+                    {job.is_external && (
+                        <span
+                            className="job-external-dot"
+                            title="Manually added"
+                        />
+                    )}
+                    {job.title}
+
+                    {!status && job.is_new && (
+                        <span className="job-new-badge">
+                            NEW
+                        </span>
+                    )}
+
+                    {typeof job.score === 'number' && (
+                        <span className="job-match-badge">
+                            {(job.score * 100).toFixed(0)}% match
+                        </span>
+                    )}
+                </div>
+
+                    <div className="job-meta">
+                        {job.company} • {job.location || 'Remote'}
+                    </div>
+
+                    <div className="job-source">
+                        {job.source}
+                    </div>
+
+                    {job.user_status && (
+                        <div className="job-status">
+                            {STATUS_LABELS[job.user_status]}
+                        </div>
+                    )}
+
+                </a>
+
+                {renderActions(job)}
+
+            </li>
+        )
+    }
+
     return (
         <section>
 
@@ -465,6 +552,34 @@ export default function Jobs() {
             </div>
         </div>
 
+        <form className="ask-jobs-panel" onSubmit={askJobs}>
+            <input
+                type="text"
+                className="ask-jobs-input"
+                placeholder="Ask about your jobs, e.g. “remote React jobs with no on-call”…"
+                value={askQuery}
+                onChange={e => setAskQuery(e.target.value)}
+            />
+            <button type="submit" className="btn-secondary" disabled={askLoading || !askQuery.trim()}>
+                {askLoading ? 'Asking…' : 'Ask'}
+            </button>
+        </form>
+
+        {askError && <p className="state-msg ask-jobs-error">{askError}</p>}
+
+        {askAnswer && (
+            <div className="ask-jobs-result">
+                <div className="ask-jobs-answer">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{askAnswer}</ReactMarkdown>
+                </div>
+                {askMatches.length > 0 && (
+                    <ul className="jobs-list ask-jobs-matches">
+                        {askMatches.map(job => renderJobCard(job))}
+                    </ul>
+                )}
+            </div>
+        )}
+
             {loading && <p className="state-msg">Loading jobs…</p>}
 
             {!loading && jobs.length === 0 && (
@@ -475,58 +590,10 @@ export default function Jobs() {
 
                 {jobs.filter(job => {
                     if (!search.trim()) return true
-                    const q = search.toLowerCase()
-                    return (
-                        job.title?.toLowerCase().includes(q) ||
-                        job.company?.toLowerCase().includes(q) ||
-                        job.location?.toLowerCase().includes(q)
-                    )
-                }).map(job => (
-                    <li key={job.id} className="job-card">
-
-                        <a
-                            href={job.source_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="job-info"
-                        >
-
-                        <div className="job-title">
-                            {job.is_external && (
-                                <span
-                                    className="job-external-dot"
-                                    title="Manually added"
-                                />
-                            )}
-                            {job.title}
-
-                            {!status && job.is_new && (
-                                <span className="job-new-badge">
-                                    NEW
-                                </span>
-                            )}
-                        </div>
-
-                            <div className="job-meta">
-                                {job.company} • {job.location || 'Remote'}
-                            </div>
-
-                            <div className="job-source">
-                                {job.source}
-                            </div>
-
-                            {job.user_status && (
-                                <div className="job-status">
-                                    {STATUS_LABELS[job.user_status]}
-                                </div>
-                            )}
-
-                        </a>
-
-                        {renderActions(job)}
-
-                    </li>
-                ))}
+                    const terms = search.toLowerCase().split(/\s+/).filter(Boolean)
+                    const haystack = `${job.title ?? ''} ${job.company ?? ''} ${job.location ?? ''}`.toLowerCase()
+                    return terms.every(term => haystack.includes(term))
+                }).map(job => renderJobCard(job))}
 
             </ul>
 

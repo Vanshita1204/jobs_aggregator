@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.core.auth import get_current_user
+from app.core.logging import get_logger
 from app.db.session import get_session
 from app.models.cv import UserCV, UserCVCreate, UserCVRead
 from app.models.job import Job
@@ -19,6 +20,7 @@ from app.services.gcs import delete_file, download_bytes, generate_download_url,
 from app.services.llm import get_cv_tips
 
 router = APIRouter(prefix="/cvs", tags=["cvs"])
+logger = get_logger(__name__)
 
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt"}
 
@@ -296,10 +298,8 @@ def cv_tips(
                     job.description = el.get_text(separator=" ", strip=True)
                     session.add(job)
                     session.commit()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            print(f"Indeed description fetch failed: {e}")
+        except Exception:
+            logger.exception("Indeed description fetch failed for job %s", job.id)
 
     try:
         tips = get_cv_tips(

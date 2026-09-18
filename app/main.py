@@ -2,29 +2,29 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401
 from app.api.v1.api import api_router
 from app.core.config import settings
+from app.core.logging import configure_logging, get_logger
+from app.core.rate_limit import RateLimitMiddleware
 from app.db.session import engine
+
+configure_logging()
+logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if settings.ENV == "development":
+        # All columns/constraints (is_external, embedding, the
+        # designation.title unique index, and the job.designation_id FK)
+        # are declared directly on the models now, so create_all() produces
+        # the fully correct schema on a fresh DB. No ALTER TABLE/CREATE
+        # INDEX patching needed — that was only ever required to retrofit
+        # an already-existing jobs.db in place.
         SQLModel.metadata.create_all(engine)
-        # Add columns introduced after initial schema creation
-        with engine.connect() as conn:
-            for stmt in [
-                "ALTER TABLE job ADD COLUMN is_external INTEGER NOT NULL DEFAULT 0",
-            ]:
-                try:
-                    conn.execute(text(stmt))
-                    conn.commit()
-                except Exception:
-                    pass  # Column already exists
     yield
 
 
@@ -37,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(api_router, prefix="/api/v1")
 

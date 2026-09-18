@@ -20,8 +20,9 @@ class Job(SQLModel, table=True):
     description: str
     source: str = Field(index=True)
     source_url: str = Field(unique=True)
-    designation_id: int = Field(index=True)
+    designation_id: int = Field(foreign_key="designation.id", index=True)
     is_external: bool = Field(default=False)
+    embedding: Optional[str] = Field(default=None)
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 

@@ -88,6 +88,62 @@ def extract_job_data(page_text: str, provider: str = "groq", api_key: str | None
     return _call_llm(prompt, provider, api_key)
 
 
+def extract_search_filters(query: str, provider: str = "groq", api_key: str | None = None) -> str:
+    """Ask the LLM to pull hard exclusion terms out of a natural-language job search query.
+
+    Embedding similarity (`app.services.rag.embeddings`) cannot represent
+    negation reliably — "python jobs not remote" embeds *closer* to a
+    remote-Python posting than a non-remote one, because small models like
+    MiniLM mostly match on the salient keyword ("remote") and largely
+    ignore the "not" in front of it (verified empirically: cosine
+    similarity to a remote posting came out higher than to an otherwise
+    identical on-site one). This function is the fix: an LLM call that
+    reads the query and extracts anything the user explicitly wants
+    excluded, so `search_jobs()` can hard-filter those terms out of the
+    embedding-ranked candidates instead of relying on the vector alone.
+
+    Input:
+        query (str): the user's raw natural-language search/question, e.g.
+            "python jobs not remote" or "backend roles, no Java".
+        provider (str): LLM provider name to use.
+        api_key (str | None): caller-supplied API key for the provider.
+
+    Output:
+        str: the raw LLM response, expected to contain one JSON object of
+        the form `{"exclude_terms": ["..."]}`. Not guaranteed to be bare
+        JSON — the caller must locate and `json.loads()` the JSON object
+        within it (same convention as `extract_job_data()`; see
+        `app.api.v1.job.ask_jobs()`, which does this via a regex search
+        before parsing, and falls back to an empty list on any failure so
+        a malformed/missing JSON degrades to "no filtering" rather than
+        breaking the search).
+
+    Calls: `_call_llm()` (this file).
+    Called by: `app.api.v1.job.ask_jobs()` — the `POST /jobs/ask` route,
+        before calling `search_jobs()`.
+
+    Logic:
+        Wraps `query` in a fixed instruction template that demands a
+        single JSON object with one field, `exclude_terms` — short,
+        lowercase words/phrases for anything the user explicitly wants
+        excluded (e.g. "remote", "java") — and nothing for merely-implied
+        or soft preferences, then forwards it to `_call_llm()` unchanged.
+    """
+    prompt = (
+        "A user is searching job postings with this query:\n"
+        f'"{query}"\n\n'
+        "Identify any terms the user explicitly wants EXCLUDED from results "
+        '(e.g. "not remote" -> "remote", "no Java" -> "java", '
+        '"excluding Bangalore" -> "bangalore"). Only include terms tied to an '
+        "explicit negation in the query — do not infer exclusions from soft "
+        "preferences or anything not directly negated.\n"
+        "Return ONLY a valid JSON object with exactly this field:\n"
+        '{"exclude_terms": ["..."]}\n'
+        "Use an empty list if nothing is explicitly excluded. No extra text outside the JSON."
+    )
+    return _call_llm(prompt, provider, api_key)
+
+
 def get_cv_tips(
     job_title: str,
     company: str,
@@ -150,6 +206,71 @@ def get_cv_tips(
         "- Explain what is wrong or missing\n"
         "- Give the exact reworded text or concrete addition to make\n\n"
         "Be blunt and specific. No generic advice. Every suggestion must be tied to actual content in the CV and the job description."
+    )
+
+    return _call_llm(prompt, provider, api_key)
+
+
+def answer_job_query(
+    query: str,
+    matched_jobs: list[dict],
+    provider: str = "groq",
+    api_key: str | None = None,
+) -> str:
+    """Build a RAG prompt from retrieved jobs and ask the LLM to answer a user's question.
+
+    This is the "augmented generation" half of the job-search RAG pipeline:
+    `app.services.rag.retrieval.search_jobs()` has already picked the
+    jobs most semantically similar to `query`; this function is only
+    responsible for turning that shortlist plus the original question into
+    one grounded answer.
+
+    Input:
+        query (str): the user's natural-language question, e.g. "remote
+            React jobs that don't require weekend on-call".
+        matched_jobs (list[dict]): the jobs retrieved for `query`, each
+            with at least title/company/location/description keys — the
+            only jobs the model is allowed to answer from.
+        provider (str): LLM provider name to use.
+        api_key (str | None): caller-supplied API key for the provider.
+
+    Output: str — the raw LLM response text, expected to reference the
+        matched jobs by title/company rather than inventing new ones.
+
+    Calls: `_call_llm()` (this file).
+    Called by: `app.api.v1.job.ask_jobs()` — the `POST /jobs/ask` route.
+
+    Variables:
+        jobs_block (str): `matched_jobs` rendered as a numbered list of
+            title/company/location/description, forming the retrieved
+            context the model must ground its answer in.
+        prompt (str): `jobs_block` combined with `query` and a fixed
+            instruction forbidding the model from answering outside the
+            given job list.
+
+    Logic:
+        1. Render each job in `matched_jobs` as a numbered block of its
+           title/company/location/description fields.
+        2. Wrap that block with the user's `query` and an instruction that
+           the model must answer only from the listed jobs and must name
+           the specific job(s) (by title and company) it bases its answer
+           on, saying so explicitly if none of them fit.
+        3. Forward the assembled prompt to `_call_llm()` and return its result.
+    """
+    jobs_block = "\n\n".join(
+        f"{i}. {job.get('title', '')} at {job.get('company', '')} "
+        f"({job.get('location') or 'location not specified'})\n"
+        f"{job.get('description', '')}"
+        for i, job in enumerate(matched_jobs, start=1)
+    )
+
+    prompt = (
+        f"Here are job postings retrieved as relevant to the question below:\n\n"
+        f"{jobs_block}\n\n"
+        f"Question: {query}\n\n"
+        "Answer the question using ONLY the job postings listed above. "
+        "Explicitly name the job(s) (title and company) your answer is based on. "
+        "If none of the listed jobs answer the question, say so plainly instead of guessing."
     )
 
     return _call_llm(prompt, provider, api_key)

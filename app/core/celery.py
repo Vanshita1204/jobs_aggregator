@@ -23,4 +23,8 @@ celery_app.conf.beat_schedule = {
         "task": "app.services.tasks.job_fetching_task",
         "schedule": crontab(hour=0, minute=0),  # once per day
     },
+    "backfill-descriptions-daily": {
+        "task": "app.services.tasks.backfill_job_descriptions_task",
+        "schedule": crontab(hour=1, minute=0),  # once per day, an hour after the fetch
+    },
 }

@@ -272,6 +272,85 @@ button:disabled {
     border-color: var(--primary, #4f46e5);
 }
 
+/* ── Ask AI (RAG job search) ──────────────────────────────── */
+
+.ask-jobs-panel {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.ask-jobs-input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    outline: none;
+}
+
+.ask-jobs-input:focus {
+    border-color: var(--primary, #4f46e5);
+}
+
+.ask-jobs-error {
+    color: #b91c1c;
+}
+
+.ask-jobs-result {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    margin-bottom: 20px;
+}
+
+.ask-jobs-answer {
+    margin: 0 0 10px;
+    line-height: 1.6;
+}
+
+.ask-jobs-answer > *:first-child {
+    margin-top: 0;
+}
+
+.ask-jobs-answer > *:last-child {
+    margin-bottom: 0;
+}
+
+.ask-jobs-answer p {
+    margin: 0 0 10px;
+}
+
+.ask-jobs-answer ul,
+.ask-jobs-answer ol {
+    margin: 0 0 10px;
+    padding-left: 20px;
+}
+
+.ask-jobs-answer table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0 0 10px;
+    font-size: 13px;
+}
+
+.ask-jobs-answer th,
+.ask-jobs-answer td {
+    border: 1px solid var(--border, #ddd);
+    padding: 6px 10px;
+    text-align: left;
+}
+
+.ask-jobs-answer th {
+    background: var(--surface, #f5f5f7);
+    font-weight: 600;
+}
+
+.ask-jobs-matches {
+    margin-top: 10px;
+}
+
 .btn-tips {
     padding: 5px 11px;
     border-radius: var(--radius-sm);
@@ -407,6 +486,18 @@ button:disabled {
     letter-spacing: 0.06em;
     background: var(--accent);
     color: #fff;
+    padding: 2px 7px;
+    border-radius: 99px;
+    vertical-align: middle;
+}
+
+.job-match-badge {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    background: #f5f3ff;
+    color: #7c3aed;
+    border: 1px solid #c4b5fd;
     padding: 2px 7px;
     border-radius: 99px;
     vertical-align: middle;

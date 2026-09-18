@@ -87,9 +87,12 @@ def job(engine, designation):
 
     There is no API endpoint for inserting a plain scraped job (only
     `POST /jobs/add`, which ingests from a live URL) — this mirrors what
-    `app.services.jobs.create_job_records` does after a real scrape.
+    `app.services.jobs.create_job_records` does after a real scrape,
+    including its `JobDesignation` link (feed visibility joins through that
+    table, not `Job.designation_id`, directly — see `app.services.jobs`).
     """
     from app.models.job import Job
+    from app.models.jobdesignation import JobDesignation
 
     with Session(engine) as session:
         row = Job(
@@ -104,4 +107,8 @@ def job(engine, designation):
         session.add(row)
         session.commit()
         session.refresh(row)
-        return row.model_dump()
+        row_data = row.model_dump()  # capture before the next commit expires `row`
+
+        session.add(JobDesignation(job_id=row.id, designation_id=designation["id"]))
+        session.commit()
+        return row_data

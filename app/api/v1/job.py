@@ -2,22 +2,32 @@
 Job API endpoints.
 """
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+import json
+import re
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
 from app.core.auth import get_current_user
+from app.core.logging import get_logger
 from app.db.session import get_session
 from app.models.enums import JobStatus
 from app.models.job import Job, JobRead
+from app.models.jobdesignation import JobDesignation
 from app.models.user import User
+from app.models.userjob import UserJob
 from app.services.description import fetch_job_description
 from app.services.external_ingestion import _extract_jk, ingest_job_from_url
 from app.services.jobs import fetch_job_records
+from app.services.llm import answer_job_query, extract_search_filters
+from app.services.rag.embeddings import embed_text, job_embedding_text
+from app.services.rag.retrieval import search_jobs
 from app.services.tasks import job_fetching_task_designation
 from app.services.userdesignation import list_user_designations
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+logger = get_logger(__name__)
 
 
 class AddJobRequest(BaseModel):
@@ -26,9 +36,16 @@ class AddJobRequest(BaseModel):
     status: str | None = None  # if set, a UserJob is created for the adding user
 
 
+class AskJobsRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+
 @router.get("", response_model=list[JobRead])
 def list_user_jobs(
     status: JobStatus | None = None,
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
@@ -39,9 +56,14 @@ def list_user_jobs(
             (jobs under the user's subscribed designations with no status
             yet, keyword filters applied, newest first). If given, returns
             only jobs the user has explicitly marked with that status.
+        limit (int): max rows to return, 1-500, default 200 — bounds what
+            was previously an unbounded full-table scan.
+        offset (int): rows to skip, for paging past `limit`.
 
     Output: list[JobRead] — see `app.services.jobs.fetch_job_records` for
-        the exact fields populated in each mode.
+        the exact fields populated in each mode. Still a bare list (not a
+        `{items, total}` envelope) so the existing frontend, which treats
+        the response as a plain array, needs no changes.
 
     Calls: `app.services.jobs.fetch_job_records()`.
     Called by: the frontend's `Jobs.jsx` page (route handler itself is the
@@ -50,7 +72,9 @@ def list_user_jobs(
     user_id = user.id
     if user_id is None:
         raise HTTPException(status_code=400, detail="Authenticated user has no id")
-    return fetch_job_records(session=session, user_id=user_id, status=status)
+    return fetch_job_records(
+        session=session, user_id=user_id, status=status, limit=limit, offset=offset
+    )
 
 
 @router.post("/fetch-new")
@@ -114,12 +138,18 @@ def add_job_manually(
     Raises: HTTPException 502 if the page could not be fetched/parsed, 422
         if no title could be extracted from it.
 
-    Calls: `_extract_jk()`, `ingest_job_from_url()`.
+    Calls: `_extract_jk()`, `ingest_job_from_url()`,
+        `app.services.rag.embeddings.embed_text()`/`job_embedding_text()`
+        to compute the new row's RAG embedding before insert.
     Called by: the frontend's "Add Job" modal in `Jobs.jsx`.
 
     Variables:
         check_url (str): `body.url` normalised to Indeed's canonical
             `viewjob?jk=` form when applicable, used for the duplicate check.
+        existing_data (dict): `existing.model_dump()` captured immediately
+            on the duplicate-URL branch, before the possible `JobDesignation`
+            commit that follows — same `expire_on_commit` ordering concern
+            as `job_data` below.
         job_data (dict): `job.model_dump()` captured immediately after the
             first commit/refresh, before the optional second commit for
             `UserJob` — see the inline comment below for why this ordering
@@ -129,12 +159,17 @@ def add_job_manually(
 
     Logic:
         1. Normalise Indeed URLs and check for an existing `Job` with that
-           `source_url`; if found, return it immediately with `is_new=False`
-           and skip ingestion entirely (no LLM/network call on a duplicate).
+           `source_url`; if found, ensure it's linked (via `JobDesignation`)
+           to `body.designation_id` — the same real posting can be added
+           under a designation it wasn't originally scraped/added under —
+           then return it immediately with `is_new=False`, skipping
+           ingestion entirely (no LLM/network call on a duplicate).
         2. Otherwise ingest via `ingest_job_from_url()`; 502 on failure,
            422 if no title came back.
-        3. Insert the new `Job` (flagged `is_external=True`), commit,
-           refresh, and snapshot its fields into `job_data`.
+        3. Insert the new `Job` (flagged `is_external=True`, with its RAG
+           embedding computed and attached before `session.add()`) plus its
+           `JobDesignation` link, commit, refresh, and snapshot its fields
+           into `job_data`.
         4. If a status was requested, also create a `UserJob` for the
            caller — this second commit is why `job_data` had to be
            captured beforehand rather than re-calling `job.model_dump()`
@@ -148,7 +183,17 @@ def add_job_manually(
 
     existing = session.exec(select(Job).where(Job.source_url == check_url)).first()
     if existing:
-        return {**existing.model_dump(), "is_new": False}
+        existing_data = existing.model_dump()  # capture before the JobDesignation commit expires it
+        already_linked = session.exec(
+            select(JobDesignation).where(
+                JobDesignation.job_id == existing.id,
+                JobDesignation.designation_id == body.designation_id,
+            )
+        ).first()
+        if not already_linked:
+            session.add(JobDesignation(job_id=existing.id, designation_id=body.designation_id))
+            session.commit()
+        return {**existing_data, "is_new": False}
 
     try:
         data = ingest_job_from_url(body.url, provider=x_llm_provider, api_key=x_llm_key or None)
@@ -168,7 +213,12 @@ def add_job_manually(
         designation_id=body.designation_id,
         is_external=True,
     )
+    job.embedding = json.dumps(
+        embed_text(job_embedding_text(job.title, job.company, job.location, job.description))
+    )
     session.add(job)
+    session.flush()  # assigns job.id without expiring attributes (unlike commit())
+    session.add(JobDesignation(job_id=job.id, designation_id=body.designation_id))
     session.commit()
     session.refresh(job)
     job_data = job.model_dump()
@@ -183,6 +233,121 @@ def add_job_manually(
         user_job_id = uj.id
 
     return {**job_data, "is_new": True, "user_job_id": user_job_id, "user_status": body.status}
+
+
+@router.post("/ask")
+def ask_jobs(
+    body: AskJobsRequest,
+    session: Session = Depends(get_session),
+    user: User = Depends(get_current_user),
+    x_llm_provider: str = Header(default="groq"),
+    x_llm_key: str = Header(default=""),
+):
+    """Answer a natural-language question over the user's jobs via RAG.
+
+    Input:
+        body (AskJobsRequest): `query` (the question) and `top_k` (how
+            many jobs to retrieve as context, default 5).
+        x_llm_provider, x_llm_key: LLM credentials for the generation step,
+            same header convention as `add_job_manually()`/`cv_tips()`.
+
+    Output: {"answer": str, "matches": list[dict]} — each entry in
+        `matches` is a full `JobRead`-shaped dict (same fields as
+        `GET /jobs`, including `user_job_id`/`user_status`) plus `score`,
+        highest-scoring first, so the frontend can render matches as
+        regular job cards (with the same status/CV actions) instead of a
+        stripped-down result list.
+
+    Calls: `extract_search_filters()`, `embed_text()`, `search_jobs()`, `answer_job_query()`.
+    Called by: the frontend's "Ask" panel in `Jobs.jsx`.
+
+    Variables:
+        exclude_terms (list[str]): hard exclusion terms parsed from
+            `body.query` via `extract_search_filters()` (e.g. "python jobs
+            not remote" -> `["remote"]`) — embedding similarity alone can't
+            honor negation (verified empirically: a "not remote" query
+            embeds *closer* to a remote posting than a non-remote one), so
+            this is a hard post-filter applied inside `search_jobs()`, not
+            something left to the vector ranking. Defaults to `[]` (no
+            filtering) if the extraction call or its JSON parsing fails —
+            a malformed filter response degrades to the old unfiltered
+            behavior rather than breaking the search.
+        query_embedding (list[float]): `body.query` embedded into the same
+            vector space as stored job embeddings.
+        matches (list[tuple[Job, float]]): the top-`top_k` (Job, score)
+            pairs from `search_jobs()`, scoped to the user's subscribed
+            designations and filtered by `exclude_terms`.
+        matched_dicts (list[dict]): `matches` reshaped into plain dicts
+            (title/company/location/description) for `answer_job_query()`,
+            which only needs those fields, not full ORM objects.
+
+    Logic:
+        1. Ask the LLM to extract hard exclusion terms from `body.query`
+           via `extract_search_filters()`; regex out the first `{...}`
+           block and `json.loads()` it, same convention as
+           `_ingest_via_llm()`. Any failure (LLM error, no JSON found,
+           bad shape) is caught and logged, falling back to `[]`.
+        2. Embed `body.query` with `embed_text()`.
+        3. Retrieve the top `body.top_k` most similar jobs the user can
+           see via `search_jobs()`, excluding any matching `exclude_terms`.
+        4. Reshape those jobs into plain dicts and pass them, with the
+           original query, to `answer_job_query()` for the LLM to answer.
+        5. Return the LLM's answer alongside the matched jobs (with scores)
+           so the caller can verify/inspect what the answer was based on.
+    """
+    exclude_terms: list[str] = []
+    try:
+        filters_response = extract_search_filters(
+            body.query, provider=x_llm_provider, api_key=x_llm_key or None
+        )
+        json_match = re.search(r"\{.*\}", filters_response, re.DOTALL)
+        if json_match:
+            exclude_terms = json.loads(json_match.group()).get("exclude_terms", []) or []
+    except Exception:
+        logger.exception("extract_search_filters failed for query %r; searching unfiltered", body.query)
+
+    query_embedding = embed_text(body.query)
+    matches = search_jobs(
+        session, user.id, query_embedding, top_k=body.top_k, exclude_terms=exclude_terms
+    )
+
+    matched_dicts = [
+        {
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "description": job.description,
+        }
+        for job, _ in matches
+    ]
+
+    try:
+        answer = answer_job_query(body.query, matched_dicts, provider=x_llm_provider, api_key=x_llm_key or None)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM error: {e}")
+
+    matched_job_ids = [job.id for job, _ in matches]
+    user_jobs_by_job_id = {
+        uj.job_id: uj
+        for uj in session.exec(
+            select(UserJob).where(
+                UserJob.user_id == user.id, UserJob.job_id.in_(matched_job_ids)
+            )
+        ).all()
+    } if matched_job_ids else {}
+
+    return {
+        "answer": answer,
+        "matches": [
+            {
+                **job.model_dump(),
+                "user_job_id": user_jobs_by_job_id[job.id].id if job.id in user_jobs_by_job_id else None,
+                "user_status": user_jobs_by_job_id[job.id].status if job.id in user_jobs_by_job_id else None,
+                "score": score,
+            }
+            for job, score in matches
+        ],
+    }
 
 
 @router.get("/{job_id}/description")

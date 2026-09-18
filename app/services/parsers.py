@@ -10,6 +10,36 @@ The CSS selectors below are tied to each portal's current markup and will
 break silently (returning fewer/no jobs) if the portal changes its DOM.
 """
 
+from urllib.parse import urlsplit
+
+from app.core.logging import get_logger
+from app.services.external_ingestion import _extract_jk
+
+logger = get_logger(__name__)
+
+
+def _strip_tracking_params(url: str) -> str:
+    """Drop a URL's query string and fragment, leaving the bare path.
+
+    Input: url (str) — a job-detail link straight off a search-results page.
+    Output: str — the same URL with everything from `?`/`#` onward removed.
+
+    Calls: none.
+    Called by: `parse_linkedin_jobs()`, `parse_hirist_jobs()` (this file).
+
+    Logic: LinkedIn and Hirist search-result links embed session/ranking
+        noise in the query string (LinkedIn: `position`, `pageNum`,
+        `refId`, `trackingId`; Hirist: `ref`, `jobPos`) that's different on
+        every page load even for the exact same posting, while the job's
+        actual identity lives in the path (which includes a stable numeric
+        id for both portals). Left un-stripped, the same job scraped twice
+        would get two different `source_url` values, defeating both the
+        `Job.source_url` UNIQUE constraint and `create_job_records()`'s
+        dedup — the same underlying posting would accumulate a fresh row
+        on every scrape run instead of ever matching an existing one.
+    """
+    return urlsplit(url)._replace(query="", fragment="").geturl()
+
 
 def parse_linkedin_jobs(soup):
     """Parse LinkedIn's public job-search results page.
@@ -29,7 +59,9 @@ def parse_linkedin_jobs(soup):
 
     Logic: for each card in `template`, pull the h3/h4/span text as
         title/company/location (each defaulting to "N/A" if missing) and
-        the first `<a href>` as `source_url`; append the resulting dict.
+        the first `<a href>`, stripped of its volatile tracking query
+        string via `_strip_tracking_params()`, as `source_url`; append the
+        resulting dict.
     """
     jobs = []
     template = soup.select("body  main > section:nth-of-type(2) > ul > li")
@@ -40,8 +72,8 @@ def parse_linkedin_jobs(soup):
         location = (
             data.select_one("span").text.strip() if data.select_one("span") else "N/A"
         )
-        source_url = job.select("a")[0]["href"]
-        print(f"Title: {title}, Company: {company}, Location: {location}")
+        source_url = _strip_tracking_params(job.select("a")[0]["href"])
+        logger.debug("Title: %s, Company: %s, Location: %s", title, company, location)
         jobs.append(
             {
                 "title": title,
@@ -75,7 +107,12 @@ def parse_indeed_jobs(soup):
     Logic: for each `<td>` with a usable first `<a>`, take its text as
         `title`, look up company/location via `data-testid` attributes
         (each defaulting to "N/A" if absent), and prefix the anchor's
-        `href` with the Indeed origin to form an absolute `source_url`.
+        `href` with the Indeed origin to form an absolute URL — then, if
+        it carries a `jk` query parameter, rewrite it to the bare
+        `viewjob?jk=<id>` form via `_extract_jk()` (same canonicalization
+        `_ingest_indeed()` uses for manually-added jobs), so the same
+        posting scraped again later still lands on the same `source_url`
+        despite Indeed varying the rest of the query string per request.
     """
     jobs = []
     template = soup.select("td")
@@ -95,8 +132,11 @@ def parse_indeed_jobs(soup):
             else "N/A"
         )
         source_url = "https://in.indeed.com" + anchors[0]["href"]
-        print(
-            f"Title: {title}, Company: {company}, Location: {location}, Source: Indeed"
+        jk = _extract_jk(source_url)
+        if jk:
+            source_url = f"https://in.indeed.com/viewjob?jk={jk}"
+        logger.debug(
+            "Title: %s, Company: %s, Location: %s, Source: Indeed", title, company, location
         )
         jobs.append(
             {
@@ -132,7 +172,9 @@ def parse_hirist_jobs(soup):
         company and title as one string with no separate DOM node for
         either — taking the part before the separator as `company` and
         after as `title` (falling back to the whole string as `title` if
-        no separator is present).
+        no separator is present). The link's `href` is prefixed with the
+        Hirist origin and run through `_strip_tracking_params()` to drop
+        its `ref`/`jobPos` query noise before becoming `source_url`.
     """
     jobs = []
     template = soup.select("div.joblist-card-v2")
@@ -146,9 +188,9 @@ def parse_hirist_jobs(soup):
         title = data.split(" - ")[1] if " - " in data else data
         company = data.split(" - ")[0]
         location = location.get_text(strip=True)
-        job_url = "https://www.hirist.tech" + link_el["href"]
-        print(
-            f"Title: {title}, Company: {company}, Location: {location}, Source: Hirist"
+        job_url = _strip_tracking_params("https://www.hirist.tech" + link_el["href"])
+        logger.debug(
+            "Title: %s, Company: %s, Location: %s, Source: Hirist", title, company, location
         )
 
         jobs.append(

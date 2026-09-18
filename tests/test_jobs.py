@@ -3,11 +3,24 @@
 from sqlmodel import Session
 
 from app.models.job import Job
+from app.models.jobdesignation import JobDesignation
 
 
 def subscribe(client, headers, designation_id):
     resp = client.post("/api/v1/user-designation", json={"designation_id": designation_id}, headers=headers)
     assert resp.status_code == 200, resp.text
+
+
+def add_job(session, designation_id, **fields):
+    """Insert a Job plus its JobDesignation link (feed visibility joins
+    through that table, not `Job.designation_id`, directly)."""
+    job = Job(designation_id=designation_id, **fields)
+    session.add(job)
+    session.commit()
+    session.refresh(job)
+    session.add(JobDesignation(job_id=job.id, designation_id=designation_id))
+    session.commit()
+    return job
 
 
 def test_unseen_feed_requires_subscription(client, auth_headers, job):
@@ -52,29 +65,16 @@ def test_status_filtered_feed_returns_actioned_job(client, auth_headers, designa
 def test_excluded_keyword_hides_matching_titles(client, auth_headers, designation, engine):
     subscribe(client, auth_headers, designation["id"])
     with Session(engine) as session:
-        session.add(
-            Job(
-                title="Backend Intern",
-                company="Acme",
-                location="Remote",
-                description="",
-                source="indeed",
-                source_url="https://in.indeed.com/viewjob?jk=intern1",
-                designation_id=designation["id"],
-            )
+        add_job(
+            session, designation["id"],
+            title="Backend Intern", company="Acme", location="Remote", description="",
+            source="indeed", source_url="https://in.indeed.com/viewjob?jk=intern1",
         )
-        session.add(
-            Job(
-                title="Backend Engineer",
-                company="Acme",
-                location="Remote",
-                description="",
-                source="indeed",
-                source_url="https://in.indeed.com/viewjob?jk=eng1",
-                designation_id=designation["id"],
-            )
+        add_job(
+            session, designation["id"],
+            title="Backend Engineer", company="Acme", location="Remote", description="",
+            source="indeed", source_url="https://in.indeed.com/viewjob?jk=eng1",
         )
-        session.commit()
 
     client.post(
         "/api/v1/user-job-preferences",
@@ -160,6 +160,45 @@ def test_add_job_manually_returns_existing_on_duplicate_url(client, auth_headers
     assert second.status_code == 200
     assert second.json()["is_new"] is False
     assert call_count["n"] == 1  # second call short-circuits before hitting the LLM/scraper
+
+
+def test_add_job_manually_links_existing_job_to_a_new_designation(client, auth_headers, designation, monkeypatch):
+    """Adding a URL that already exists under a different designation must
+    link it (via JobDesignation) to the new one too, not just return it
+    unchanged — otherwise it stays invisible under the designation the
+    second `Add Job` call was actually for."""
+    from app.api.v1 import job as job_module
+
+    monkeypatch.setattr(
+        job_module,
+        "ingest_job_from_url",
+        lambda url, provider, api_key: {
+            "title": "Staff Engineer", "company": "Beta Inc", "location": "Remote",
+            "description": "", "source": "Beta", "source_url": url,
+        },
+    )
+
+    other = client.post("/api/v1/designation", json={"title": "Other Designation"}, headers=auth_headers)
+    assert other.status_code == 200
+    other_id = other.json()["id"]
+    subscribe(client, auth_headers, other_id)
+
+    payload = {"url": "https://beta.example.com/jobs/cross-designation", "designation_id": designation["id"]}
+    first = client.post("/api/v1/jobs/add", json=payload, headers=auth_headers)
+    assert first.json()["is_new"] is True
+
+    second = client.post(
+        "/api/v1/jobs/add",
+        json={**payload, "designation_id": other_id},
+        headers=auth_headers,
+    )
+    assert second.status_code == 200
+    assert second.json()["is_new"] is False
+    assert second.json()["id"] == first.json()["id"]  # same Job row, not a duplicate
+
+    resp = client.get("/api/v1/jobs", headers=auth_headers)
+    titles = [j["title"] for j in resp.json()]
+    assert "Staff Engineer" in titles  # now visible via the newly-linked designation too
 
 
 def test_add_job_manually_rejects_untitled_extraction(client, auth_headers, designation, monkeypatch):
